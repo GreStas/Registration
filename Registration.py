@@ -194,7 +194,6 @@ class RegWorker(object):
                         remark="RegWorker.SaveRequest cannot select count from registrations"
                     )
                 elif rows[0] > 0:
-                    # self.dbpool.disconnect(dbconn.name)
                     if __debug__: self._log.debug("errDupLognameReg")
                     request_id = RegWorker.ErrCode("errDupLognameReg")
                     if __debug__: self._log.debug("errDupLognameReg,%d" % request_id)
@@ -202,7 +201,7 @@ class RegWorker(object):
                         errno=request_id,
                         errspec="errDupLognameReg",
                         errmsg=RegWorker.ErrMsgs[request_id],
-                        remark="RegWorker.SaveRequest cannot select count from registrations"
+                        remark="RegWorker.SaveRequest found %d rows in registrations for %s" % (rows[0], logname)
                     )
 
                 # Проверяем на дубликат в users
@@ -217,7 +216,7 @@ class RegWorker(object):
                         errno=request_id,
                         errspec="errNoDataFound",
                         errmsg=RegWorker.ErrMsgs[request_id],
-                        remark="RegWorker.SaveRequest cannot select count from users"
+                        remark="RegWorker.SaveRequest found %d rows in users for %s" % (rows[0], logname)
                     )
                 elif rows[0] > 0:
                     request_id = RegWorker.ErrCode("errDupLognameUsr")
