@@ -77,29 +77,39 @@ except ImportError, info:
     print "Import user's modules error:", info
     sys.exit()
 
-wrkr = getRegWorker(defconnection,1,16)
+# wrkr = getRegWorker(defconnection,1,16)
 
 class RegHandler(SocketServer.StreamRequestHandler):
     def handle(self):
         while True:
-            data = self.request.recv(1024)
-            print data
-            if not data:
+            data = json.loads(self.request.recv(1024))
+            if __debug__: print data
+            if data is None:
                 break
-            lst = json.loads(data)
-            if lst[0] == 'upper':
-                self.request.send(lst[1].upper())
+            if data['cmnd'] == 'upper':
+                data['data']['alias'] = data['data']['alias'].upper()
+                self.request.send(json.dumps({
+                    'answ': 'success',
+                    'data': data['data'],
+                }))
             elif lst[0] == 'lower':
-                self.request.send(lst[1].lower())
+                data['data']['alias'] = data['data']['alias'].lower()
+                self.request.send(json.dumps({
+                    'answ': 'success',
+                    'data': data['data'],
+                }))
             else:
-                self.request.send("Unknown command: %s" % lst[0])
+                self.request.send(json.dumps({
+                    'answ': 'Error',
+                    'mesg': "Unknown command: %s" % lst[0],
+                }))
 
-class RegServer(SocketServer.TCPServer):
+class RegServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
 
-srvr = UpperServer(('', 9090), RegHandler)
+srvr = RegServer(('', 9090), RegHandler)
 srvr.serve_forever()
 
 sleep(1)
-wrkr.closeDBpool()
+# wrkr.closeDBpool()
 _log.debug("Finished")

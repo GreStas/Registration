@@ -1,5 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+#
+# Using:
+#   "Сокеты в Python для начинающих" URL=https://habrahabr.ru/post/149077/
+#
 
 # Import standart modules
 import sys
@@ -7,6 +11,8 @@ from time import sleep
 from random import randint
 import json
 from future_builtins import ascii
+import socket
+import datetime
 
 # Import 3rd-parties modules
 try:
@@ -38,13 +44,14 @@ cfg = Config(
     ],
     filename="stresstest.conf",
 )
-defconnection = {}
-defconnection["pg_hostname"]    = cfg.options['pghost']
-defconnection["pg_database"]    = cfg.options['pgdb']
-defconnection["pg_user"]        = cfg.options['pguser']
-defconnection["pg_passwd"]      = cfg.options['pgpasswd']
-defconnection["pg_role"]        = cfg.options['pgrole']
-defconnection["pg_schema"]      = cfg.options['pgschema']
+defconnection = {
+    "pg_hostname":  cfg.options['pghost'],
+    "pg_database":  cfg.options['pgdb'],
+    "pg_user":      cfg.options['pguser'],
+    "pg_passwd":    cfg.options['pgpasswd'],
+    "pg_role":      cfg.options['pgrole'],
+    "pg_schema":    cfg.options['pgschema'],
+}
 loglevel   = cfg.options['loglevel']
 logfile   = cfg.options['logfile']
 del cfg
@@ -91,7 +98,11 @@ fakers = []
 fakers.append(Factory.create("ru_RU"))
 fakers_max = len(fakers) - 1
 
-for ii in xrange(1):
+sock = socket.socket()
+sock.connect(('', 9090))
+
+print datetime.datetime.now()
+for ii in xrange(10000):
     fake = fakers[randint(0,fakers_max)]
     logname = fake.email()
     passwd = fake.password(
@@ -102,26 +113,43 @@ for ii in xrange(1):
         lower_case=True
     )
     alias = fake.name()
-    print 'Generated:\n', logname, passwd, alias, '\n'
-    send_data = json.dumps({
+    if __debug__: print '\n<--- Generated:\n  %s\n  %s\n  %s\n' % (logname, passwd, alias)
+    data = {
         'logname': logname,
         'passwd': passwd,
         'alias': alias,
+    }
+    send_data = json.dumps({
+        'cmnd': 'upper',
+        'data': data,
     })
-    print 'Sent:\n',send_data, '\n'
-    recieve_data = json.loads(send_data)
-    print 'Recieved:\n', recieve_data, '\n'
+    if __debug__: print 'Sent:\n',send_data, '\n'
+    sock.send(send_data)
+
+    recieve_data = json.loads(sock.recv(1024))
+    if recieve_data['answ'] == 'Error':
+        print "%s: '%s'" % (recieve_data['answ'], recieve_data['mesg'])
+        continue
+
+    data = recieve_data['data']
+    if __debug__: print 'Recieved:\n', data, '\n'
     encode_data = {}
-    for (key,value) in recieve_data.items():
+    for (key,value) in data.items():
         ekey = key.encode('utf-8')
         evalue = value.encode('utf-8')
-        print '(ekey:evalue) = (%s:%s)' % (ekey, evalue)
+        if __debug__: print '(ekey:evalue) = (%s:%s)' % (ekey, evalue)
         encode_data[ekey] = evalue
-    print '\nEncoded:\n'
-    for key in encode_data:
-        print key, encode_data[key]
+    if __debug__:
+        print '\nEncoded:\n'
+        for key in encode_data:
+            print key, encode_data[key]
+    if __debug__: print '\nFinished --->\n'
+    # s = raw_input('Press any key to continue...')
 
+sock.send(json.dumps(None))
+sock.close()
 
 # sleep(1)
 # wrkr.closeDBpool()
 _log.debug("Finished")
+print datetime.datetime.now()
