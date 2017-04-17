@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 #
 #   Module : PGdbworker.py
-#   Last updated : 22:22 07.03.2017
 #
 try:
     import os
@@ -30,7 +29,7 @@ _log = logging.getLogger("PGdbpool")
 _log.debug("Started")
 
 
-# Общий тип ошибки модуля
+# Common module exception Error
 class Error(RuntimeError):
     def __init__(self, errno, errspec, errmsg, remark=None):
         self.args = (errno, errspec, errmsg, remark)

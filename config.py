@@ -38,12 +38,6 @@ class Config(object):
          version = '0.0.0.1', # for optparse.OptionParser
          description = 'Config: getParam, getParams, getConfig', # for optparse.OptionParser
     ):
-        """
-        :param options:
-        :param filename:
-        :param version:
-        :param description:
-        """
         # получаем параметры из опций коммандной строки
         opts = optparse.OptionParser(version=version, description=description)
         for item in options:

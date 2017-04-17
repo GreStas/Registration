@@ -13,11 +13,9 @@
 
 from future_builtins import ascii
 import sys
-# import time
 import datetime
 import hashlib
-import multiprocessing
-# from SocketServer import StreamRequestHandler # Python 2
+# import multiprocessing
 
 class _Null(object):
     """ Класс _Null необходим для маскировки при пустом логировании """
@@ -57,8 +55,7 @@ except ImportError, info:
 #  Module codes
 
 def getRegWorker(dbconn, minconn=None, maxconn=None):
-    """ getDBpool(dbconn): PGdbpool.DBpool
-        предназначена, чтобы не импортировать PGdbpool в Клиенте этого модуля
+    """ getRegWorker(dbconn, minconn=None, maxconn=None): RegWorker()
     """
     if __debug__: _log.debug("getRegWorker %d %d" % (minconn,maxconn))
     dbpool = DBpool(dbconn, minconn, maxconn)
