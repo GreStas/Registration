@@ -102,7 +102,7 @@ sock = socket.socket()
 sock.connect(('', 9090))
 
 print datetime.datetime.now()
-for ii in xrange(10000):
+for ii in xrange(1):
     fake = fakers[randint(0,fakers_max)]
     logname = fake.email()
     passwd = fake.password(

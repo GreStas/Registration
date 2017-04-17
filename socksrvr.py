@@ -77,9 +77,8 @@ except ImportError, info:
     print "Import user's modules error:", info
     sys.exit()
 
-# wrkr = getRegWorker(defconnection,1,16)
 
-class RegHandler(SocketServer.StreamRequestHandler):
+class UpperHandler(SocketServer.StreamRequestHandler):
     def handle(self):
         while True:
             data = json.loads(self.request.recv(1024))
@@ -92,7 +91,7 @@ class RegHandler(SocketServer.StreamRequestHandler):
                     'answ': 'success',
                     'data': data['data'],
                 }))
-            elif lst[0] == 'lower':
+            elif data['cmnd'] == 'lower':
                 data['data']['alias'] = data['data']['alias'].lower()
                 self.request.send(json.dumps({
                     'answ': 'success',
@@ -101,8 +100,81 @@ class RegHandler(SocketServer.StreamRequestHandler):
             else:
                 self.request.send(json.dumps({
                     'answ': 'Error',
-                    'mesg': "Unknown command: %s" % lst[0],
+                    'mesg': "Unknown command: %s" % data['cmnd'],
                 }))
+
+
+reg_worker = getRegWorker(defconnection, 1, 16)
+
+
+class RegWorkerError(Exception):
+    pass
+
+
+class RegHandler(SocketServer.StreamRequestHandler):
+    def handle(self):
+        while True:
+            raw_data = self.request.recv(1024)
+            _log.info("Recieve JSON data %s" % raw_data)
+            datagramma = json.loads(raw_data)
+            if datagramma is None:
+                break
+            try:
+                if datagramma['cmnd'] == 'SaveRequest':
+                    result = reg_worker.SaveRequest(
+                        logname=datagramma['data']['logname'],
+                        alias=datagramma['data']['alias'],
+                        passwd=datagramma['data']['passwd'],
+                    )
+                    if result < 0:
+                        raise RegWorkerError(reg_worker.ErrMsgs[result])
+                    else:
+                        self.request.send(json.dumps({
+                            'answ': 'success',
+                            'request_id': result,
+                        }))
+                elif datagramma['cmnd'] == 'RegApprove':
+                    result = reg_worker.RegApprove(
+                        authcode=datagramma['data']['authcode'],
+                    )
+                    if result < 0:
+                        raise RegWorkerError(reg_worker.ErrMsgs[result])
+                    else:
+                        self.request.send(json.dumps({'answ': 'success',}))
+                elif datagramma['cmnd'] == 'SendMail':
+                    result = reg_worker.SendMail(
+                        request_id= datagramma['data']['request_id'],
+                        logname = datagramma['data']['logname'],
+                        alias = datagramma['data']['alias'],
+                        authcode=datagramma['data']['authcode'],
+                    )
+                    if result < 0:
+                        raise RegWorkerError(reg_worker.ErrMsgs[result])
+                    else:
+                        self.request.send(json.dumps({'answ': 'success',}))
+                elif datagramma['cmnd'] == 'Garbage':
+                    reg_worker.Garbage(timealive=datagramma['data']['timealive'],)
+                    self.request.send(json.dumps({'answ': 'success',}))
+                elif datagramma['cmnd'] == 'Gather':
+                    result = reg_worker.Gather(
+                        request_id=datagramma['data']['fields'],
+                        limit=datagramma['data']['limit'],
+                    )
+                    self.request.send(json.dumps({
+                        'answ': 'success',
+                        'rows': result
+                    }))
+                else:
+                    self.request.send(json.dumps({
+                        'answ': 'Error',
+                        'mesg': "Unknown command: %s" % datagramma['cmnd'],
+                    }))
+            except RegWorkerError as e:
+                self.request.send(json.dumps({
+                    'answ': 'Error',
+                    'mesg': e.message,
+                }))
+
 
 class RegServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
@@ -111,5 +183,5 @@ srvr = RegServer(('', 9090), RegHandler)
 srvr.serve_forever()
 
 sleep(1)
-# wrkr.closeDBpool()
+reg_worker.closeDBpool()
 _log.debug("Finished")

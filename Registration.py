@@ -172,7 +172,7 @@ class RegWorker(object):
         if __debug__: self._log.debug("Started")
         dbconn = self._dbpool.connect()
         request_id = None
-        try:  # Пока не PGdbpool.DBworker не реализован для with - используем охватывающий try с универсальным Exception
+        try:  # Пока PGdbpool.DBworker не реализован для with - используем охватывающий try с универсальным Exception
             try:
                 # Проверяем на дубликат в registrations
                 stri = "select count(*) from registrations where logname='%s'" % logname
@@ -327,7 +327,7 @@ class RegWorker(object):
         return RegWorker.ErrCode("errRegStatusToRegistered")
 
     def Garbage(self, timealive):
-        """ void Garbage(timealive, interval)
+        """ Garbage(timealive, interval): void
         Сборка мусора в журнале регистраций
         PURPOSE:
         - Зачистить не подтверждённые  обращения
@@ -370,8 +370,11 @@ class RegWorker(object):
             SQL = "select %s from registrations" % select_exp
             if where_exp:
                 SQL += " where " + where_exp
-            if limit and limit > 0:
+            if limit is not None and limit > 0:
                 SQL += " limit %d" % int(limit)
+        else: # Если ни одно из переданных полей не в ходит в список разрешённых, то выйти
+            self._log.warn("No fild is in allowed")
+            return None
         if __debug__: self._log.debug(SQL)
         # Получаем коннект к БД
         # rows = []
