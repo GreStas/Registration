@@ -109,27 +109,32 @@ def save_request(fake):
         _log.error("%s: '%s'" % (recieve_data['answ'], recieve_data['mesg']))
         raise RegError(recieve_data['mesg'])
     data = recieve_data['data']
-    return data['request_id']
+    return data
 
 def get_authcode(request_id):
     # Prepare and send data
     data = {
         'fields': [
-            {'authcode': None},
-            {'request_id': "=%d" % request_id},
+            ('authcode', None),
+            ('id', "=%d" % request_id),
         ],
         'limit': 1,
     }
     send_data = json.dumps({'cmnd': 'Gather', 'data': data,})
     sock.send(send_data)
     #
-    # Recieve data and prepare to return
-    recieve_data = json.loads(sock.recv(1024))
+    # Recieve Header of data
+    raw_data = sock.recv(1024)
+    recieve_data = json.loads(raw_data)
     if recieve_data['answ'] == 'Error':
         _log.error("%s: '%s'" % (recieve_data['answ'], recieve_data['mesg']))
         raise RegError(recieve_data['mesg'])
-    data = recieve_data['data'] # это будет список из одного элемента котрежа из двух полей
-    return data[0][0]
+    sock.send('OK')
+    size = recieve_data['size']
+    #
+    # Recieve data and prepare to return
+    recieve_data = json.loads(sock.recv(size)) # это будет список из одного элемента - кортежа из двух полей
+    return recieve_data[0][0]   # нам нужно только первое поле
 
 def reg_approve(authcode):
     #
@@ -162,37 +167,39 @@ def reg_garbage(timealive):
         raise RegError(recieve_data['mesg'])
 
 def get_not_send():
-    #
     # Prepare and send data
-    # request_id, logname, alias, authcode
     data = {
         'fields': [
-            {'request_id': None},
-            {'logname': None},
-            {'alias': None},
-            {'authcode': None},
-            {'status': "='requested'"}
+            ('id', None),
+            ('logname', None),
+            ('alias', None),
+            ('authcode', None),
+            ('status', "='requested'")
         ],
-        'limit': None,
+        'limit': 0,
     }
     send_data = json.dumps({'cmnd': 'Gather', 'data': data,})
     sock.send(send_data)
     #
-    # Recieve data and prepare to return
-    json_data = None
-    while True:
-        raw_data = sock.recv(1024)
-        if not raw_data:
-            del raw_data
-            break
-        else:
-            json_data += raw_data
-    recieve_data = json.loads(json_data)
-    del json_data
+    # Recieve Header of data
+    raw_data = sock.recv(1024)
+    recieve_data = json.loads(raw_data)
     if recieve_data['answ'] == 'Error':
         _log.error("%s: '%s'" % (recieve_data['answ'], recieve_data['mesg']))
         raise RegError(recieve_data['mesg'])
-    return recieve_data['data']
+    sock.send('OK')
+    size = recieve_data['size']
+    if __debug__: print "Size is %d" % size
+    #
+    #  Recieve data and prepare to return
+    json_data = ''
+    while size > 0:
+        raw_data = sock.recv(1024)
+        json_data += raw_data
+        size -= len(raw_data)
+    if __debug__: print "len(json_data)=%d" % len(json_data)
+    recieve_data = json.loads(json_data)
+    return recieve_data
 
 def send_mail(request_id, logname, alias, authcode):
     #
@@ -221,28 +228,25 @@ def send_mail(request_id, logname, alias, authcode):
 
 sock = socket.socket()
 sock.connect(('', 9090))
+
 print datetime.datetime.now()
-for request_id, logname, alias, authcode, status in get_not_send():
+rows = get_not_send()
+print "Getting %d rows from Registration for send_mail()" % len(rows)
+for request_id, logname, alias, authcode, status in rows:
     try:
         send_mail(request_id, logname, alias, authcode)
     except RegError as e:
         _log.error("SendMail is unsuccessfull: %s" % e.message)
         continue
-
 print datetime.datetime.now()
-sock.send(json.dumps(None))
-sock.close()
-# sys.exit(0)
 
 fakers = []
 fakers.append(Factory.create("ru_RU"))
 fakers_max = len(fakers) - 1
 
-sock = socket.socket()
-sock.connect(('', 9090))
 
-print datetime.datetime.now()
-for ii in xrange(1):
+print "Main cicle started at ", datetime.datetime.now()
+for ii in xrange(10000):
     if __debug__: print '\n<--- Started ---\n'
 
     try:
@@ -250,23 +254,28 @@ for ii in xrange(1):
     except RegError as e:
         _log.error("SaveRequest is unsuccessfull: %s" % e.message)
         continue
+    if __debug__: print "SaveRequest is successfull"
 
     try:
         authcode = get_authcode(request_id)
     except RegError as e:
         _log.error("GetAuthcode is unsuccessfull: %s" % e.message)
         continue
+    if __debug__: print "GetAuthcode is successfull"
 
     try:
         reg_approve(authcode)
     except RegError as e:
         _log.error("RegApprove is unsuccessfull: %s" % e.message)
         continue
-
-    reg_garbage(3600)
+    if __debug__: print "RegApprove is successfull"
 
     if __debug__: print '\n--- Finished --->\n'
     # s = raw_input('Press any key to continue...')
+print "Main cicle finished at ", datetime.datetime.now()
+
+print datetime.datetime.now()
+reg_garbage(60*60*24*10)
 print datetime.datetime.now()
 
 sock.send(json.dumps(None))

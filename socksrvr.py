@@ -20,7 +20,8 @@ cfg = Config(
         {'name': 'pgpasswd', 'section': 'POSTGRESQL', },
         {'name': 'pgrole', 'section': 'POSTGRESQL', },
         {'name': 'pgschema', 'section': 'POSTGRESQL', },
-        {'name': 'loglevel', 'default': 'DEBUG', 'section': 'DEBUG', },
+        # {'name': 'loglevel', 'default': 'DEBUG', 'section': 'DEBUG', },
+        {'name': 'loglevel', 'section': 'DEBUG', },
         {'name': 'logfile', 'default': 'socksrvr.log', 'section': 'DEBUG', },
         # {'name': 'duration', 'section': 'DEFAULT', },
         # {'name': 'freq', 'section': 'DEFAULT', },
@@ -116,6 +117,8 @@ class RegHandler(SocketServer.StreamRequestHandler):
         while True:
             raw_data = self.request.recv(1024)
             _log.info("Recieve JSON data %s" % raw_data)
+            if not raw_data:
+                break
             datagramma = json.loads(raw_data)
             if datagramma is None:
                 break
@@ -131,7 +134,7 @@ class RegHandler(SocketServer.StreamRequestHandler):
                     else:
                         self.request.send(json.dumps({
                             'answ': 'success',
-                            'request_id': result,
+                            'data': result,
                         }))
                 elif datagramma['cmnd'] == 'RegApprove':
                     result = reg_worker.RegApprove(
@@ -156,14 +159,16 @@ class RegHandler(SocketServer.StreamRequestHandler):
                     reg_worker.Garbage(timealive=datagramma['data']['timealive'],)
                     self.request.send(json.dumps({'answ': 'success',}))
                 elif datagramma['cmnd'] == 'Gather':
-                    result = reg_worker.Gather(
-                        request_id=datagramma['data']['fields'],
+                    result = json.dumps(reg_worker.Gather(
+                        fields=datagramma['data']['fields'],
                         limit=datagramma['data']['limit'],
-                    )
+                    ))
                     self.request.send(json.dumps({
                         'answ': 'success',
-                        'rows': result
+                        'size': len(result)
                     }))
+                    if self.request.recv(2) == 'OK':
+                        self.request.send(result)
                 else:
                     self.request.send(json.dumps({
                         'answ': 'Error',
@@ -174,6 +179,7 @@ class RegHandler(SocketServer.StreamRequestHandler):
                     'answ': 'Error',
                     'mesg': e.message,
                 }))
+        self.request.close()
 
 
 class RegServer(SocketServer.ThreadingTCPServer):
