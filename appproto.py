@@ -9,6 +9,7 @@ class Error(RuntimeError):
     pass
 
 APP_PROTO_OK = 'OK'
+APP_PROTO_NO = 'NO'
 APP_PROTO_ERROR = 'ERROR'
 
 
@@ -24,12 +25,22 @@ class AppProto(object):
         with self._send_rlock:
             self.sock.send(APP_PROTO_OK)
 
-    def send_ERROR(self, mesg):
+    def send_NO(self):
+        with self._send_rlock:
+            self.sock.send(APP_PROTO_NO)
+
+    def _send_answer(self, answ, mesg):
         with self._send_rlock:
             self.sock.send(json.dumps({
-                'answ': APP_PROTO_ERROR,
+                'answ': answ,
                 'mesg': mesg,
             }))
+
+    def send_ERROR(self, mesg):
+        self._send_answer(APP_PROTO_ERROR, mesg)
+
+    def send_SUCCESS(self, mesg=None):
+        self._send_answer(APP_PROTO_OK, mesg)
 
     def send_cmnd(self, cmnd, data=None):
         with self._send_rlock:
@@ -54,12 +65,13 @@ class AppProto(object):
                 return False
 
     def recv_answer(self, bufsize=1024):
-        """ На выходе или словарь {'answ':, 'mesg':}, или исключение Error"""
+        """ На выходе mesg или исключение Error"""
         with self._recv_rlock:
-            recieve_data = json.loads(self.sock.recv(bufsize))
-            if recieve_data['answ'] == APP_PROTO_ERROR:
-                raise Error(recieve_data['mesg'])
-            return recieve_data
+            data = json.loads(self.sock.recv(bufsize))
+            if data['answ'] == APP_PROTO_ERROR:
+                raise Error(data['mesg'])
+            elif data['answ'] == APP_PROTO_OK:
+                return data['mesg']
 
     def recv_cmnd(self, bufsize=1024):
         """ На выходе data или None или исключение Error"""

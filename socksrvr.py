@@ -134,11 +134,14 @@ class RegHandler(SocketServer.StreamRequestHandler):
                     reg_worker.Garbage(timealive=datagramma['data']['timealive'],)
                     proto.send_cmnd('success')
                 elif datagramma['cmnd'] == 'Gather':
-                    result = json.dumps(reg_worker.Gather(
+                    rows = reg_worker.Gather(
                         fields=datagramma['data']['fields'],
                         limit=datagramma['data']['limit'],
-                    ))
-                    proto.send_cmnd('success', result)
+                    )
+                    proto.send_SUCCESS(len(rows))
+                    if proto.recv_OK():  # Если Клиент готов принимать данные
+                        proto.send_cmnd(datagramma['cmnd'], rows)
+                    del rows
                 else:
                     proto.send_ERROR("Unknown command: %s" % datagramma['cmnd'])
             except RegWorkerError as e:
