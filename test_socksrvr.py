@@ -27,6 +27,7 @@ except ImportError, info:
 # Import my modules
 try:
     from config import Config
+    import appproto
 except ImportError, info:
     print "Import user's modules error:", info
     sys.exit()
@@ -77,39 +78,30 @@ class RegError(RuntimeError):
     pass
 
 
-def save_request(fake):
-    #
-    # Generate data
-    logname = fake.email()
-    passwd = fake.password(
-        length=10,
-        special_chars=True,
-        digits=True,
-        upper_case=True,
-        lower_case=True
-    )
-    alias = fake.name()
-    if __debug__: _log.debug("Generated: '%s',  '%s', '%s'." % (logname, passwd, alias))
-    #
-    # Prepare and send data
-    data = {
-        'logname': logname,
-        'passwd': passwd,
-        'alias': alias,
-    }
-    send_data = json.dumps({
-        'cmnd': 'SaveRequest',
-        'data': data,
-    })
-    sock.send(send_data)
-    #
-    # Recieve data and prepare to return
-    recieve_data = json.loads(sock.recv(1024))
-    if recieve_data['answ'] == 'Error':
-        _log.error("%s: '%s'" % (recieve_data['answ'], recieve_data['mesg']))
-        raise RegError(recieve_data['mesg'])
-    data = recieve_data['data']
-    return data
+
+    class RegClient(object):
+        def __init__(self, host, port):
+            self._sock = socket.socket()
+            self._sock.connect(host, port)
+            self._proto = appproto.AppProto(self._sock)
+
+        def save_request(self, fake):
+            self._proto.send_cmnd(
+                'SaveRequest',
+                {'logname': fake.email(),
+                 'passwd': fake.password(length=10,
+                                         special_chars=True,
+                                         digits=True,
+                                         upper_case=True,
+                                         lower_case=True),
+                 'alias': fake.name(),},
+            )
+            try:
+                data = self._proto.recv_answer()
+            except appproto.Error as e:
+                _log.error(e.message)
+                raise RegError(e.message)
+            return data
 
 def get_authcode(request_id):
     # Prepare and send data

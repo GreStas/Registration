@@ -74,35 +74,10 @@ _log.debug("Started")
 
 try:
     from Registration import getRegWorker
+    import appproto
 except ImportError, info:
     print "Import user's modules error:", info
     sys.exit()
-
-
-class UpperHandler(SocketServer.StreamRequestHandler):
-    def handle(self):
-        while True:
-            data = json.loads(self.request.recv(1024))
-            if __debug__: print data
-            if data is None:
-                break
-            if data['cmnd'] == 'upper':
-                data['data']['alias'] = data['data']['alias'].upper()
-                self.request.send(json.dumps({
-                    'answ': 'success',
-                    'data': data['data'],
-                }))
-            elif data['cmnd'] == 'lower':
-                data['data']['alias'] = data['data']['alias'].lower()
-                self.request.send(json.dumps({
-                    'answ': 'success',
-                    'data': data['data'],
-                }))
-            else:
-                self.request.send(json.dumps({
-                    'answ': 'Error',
-                    'mesg': "Unknown command: %s" % data['cmnd'],
-                }))
 
 
 reg_worker = getRegWorker(defconnection, 1, 16)
@@ -114,13 +89,10 @@ class RegWorkerError(Exception):
 
 class RegHandler(SocketServer.StreamRequestHandler):
     def handle(self):
+        proto = appproto.AppProto(self.request)
         while True:
-            raw_data = self.request.recv(1024)
-            _log.info("Recieve JSON data %s" % raw_data)
-            if not raw_data:
-                break
-            datagramma = json.loads(raw_data)
-            if datagramma is None:
+            datagramma = proto.recv_cmnd()
+            if not datagramma:
                 break
             try:
                 if datagramma['cmnd'] == 'SaveRequest':
@@ -130,60 +102,53 @@ class RegHandler(SocketServer.StreamRequestHandler):
                         passwd=datagramma['data']['passwd'],
                     )
                     if result < 0:
+                        proto.send_ERROR(reg_worker.ErrMsgs[result])
                         raise RegWorkerError(reg_worker.ErrMsgs[result])
                     else:
-                        self.request.send(json.dumps({
-                            'answ': 'success',
-                            'data': result,
-                        }))
+                        proto.send_cmnd(
+                            'success',
+                            {'answ': 'success', 'data': result, },
+                        )
                 elif datagramma['cmnd'] == 'RegApprove':
                     result = reg_worker.RegApprove(
                         authcode=datagramma['data']['authcode'],
                     )
                     if result < 0:
+                        proto.send_ERROR(reg_worker.ErrMsgs[result])
                         raise RegWorkerError(reg_worker.ErrMsgs[result])
                     else:
-                        self.request.send(json.dumps({'answ': 'success',}))
+                        proto.send_cmnd('success')
                 elif datagramma['cmnd'] == 'SendMail':
                     result = reg_worker.SendMail(
-                        request_id= datagramma['data']['request_id'],
-                        logname = datagramma['data']['logname'],
-                        alias = datagramma['data']['alias'],
+                        request_id=datagramma['data']['request_id'],
+                        logname=datagramma['data']['logname'],
+                        alias=datagramma['data']['alias'],
                         authcode=datagramma['data']['authcode'],
                     )
                     if result < 0:
+                        proto.send_ERROR(reg_worker.ErrMsgs[result])
                         raise RegWorkerError(reg_worker.ErrMsgs[result])
                     else:
-                        self.request.send(json.dumps({'answ': 'success',}))
+                        proto.send_cmnd('success')
                 elif datagramma['cmnd'] == 'Garbage':
                     reg_worker.Garbage(timealive=datagramma['data']['timealive'],)
-                    self.request.send(json.dumps({'answ': 'success',}))
+                    proto.send_cmnd('success')
                 elif datagramma['cmnd'] == 'Gather':
                     result = json.dumps(reg_worker.Gather(
                         fields=datagramma['data']['fields'],
                         limit=datagramma['data']['limit'],
                     ))
-                    self.request.send(json.dumps({
-                        'answ': 'success',
-                        'size': len(result)
-                    }))
-                    if self.request.recv(2) == 'OK':
-                        self.request.send(result)
+                    proto.send_cmnd('success', result)
                 else:
-                    self.request.send(json.dumps({
-                        'answ': 'Error',
-                        'mesg': "Unknown command: %s" % datagramma['cmnd'],
-                    }))
+                    proto.send_ERROR("Unknown command: %s" % datagramma['cmnd'])
             except RegWorkerError as e:
-                self.request.send(json.dumps({
-                    'answ': 'Error',
-                    'mesg': e.message,
-                }))
+                proto.send_ERROR(e.message)
         self.request.close()
 
 
 class RegServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
+
 
 srvr = RegServer(('', 9090), RegHandler)
 srvr.serve_forever()

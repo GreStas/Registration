@@ -62,9 +62,12 @@ class AppProto(object):
             return recieve_data
 
     def recv_cmnd(self, bufsize=1024):
-        """ На выходе data или исключение Error"""
+        """ На выходе data или None или исключение Error"""
         with self._recv_rlock:
-            header = json.loads(self.sock.recv(bufsize))
+            raw_data = self.sock.recv(bufsize)
+            if not raw_data:
+                return None
+            header = json.loads(raw_data)
             try:
                 cmnd = header['cmnd']
                 size = header['size']
