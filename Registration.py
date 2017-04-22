@@ -15,7 +15,6 @@ from future_builtins import ascii
 import sys
 import datetime
 import hashlib
-# import multiprocessing
 
 class _Null(object):
     """ Класс _Null необходим для маскировки при пустом логировании """
@@ -61,10 +60,6 @@ def getRegWorker(dbconn, minconn=None, maxconn=None):
     dbpool = DBpool(dbconn, minconn, maxconn)
     return RegWorker(dbpool)
 
-# Запущенный SocketServer принимает запросы следующих типов:
-# - SaveRequest - WEB-server принял данные от Пользователя
-# - RegApprove - WEB-server сообщает, что поступило обращение на URL подтверждений регистрации
-#                 с переданным кодом авторизаци
 
 class RegWorker(object):
     """ class RegWorker(p_dbpool, p_log=_Null)
@@ -266,8 +261,8 @@ class RegWorker(object):
                                 % (request_id, RegWorker.ErrMsgs[request_id]))
         finally:
             self._dbpool.disconnect(dbconn.name)
-        if request_id > 0:
-            self.SendMail(request_id, logname, alias, authcode)
+        # if request_id > 0:
+        #     self.SendMail(request_id, logname, alias, authcode)
         return request_id
 
     def RegApprove(self, authcode):
@@ -373,7 +368,7 @@ class RegWorker(object):
             if limit is not None and limit > 0:
                 SQL += " limit %d" % int(limit)
         else: # Если ни одно из переданных полей не в ходит в список разрешённых, то выйти
-            self._log.warn("No fild is in allowed")
+            self._log.warn("No field is in allowed")
             return None
         if __debug__: self._log.debug(SQL)
         # Получаем коннект к БД
@@ -387,6 +382,7 @@ class RegWorker(object):
             self._log.error(str(e))
         finally:
             self._dbpool.disconnect(dbconn.name)
+        if __debug__: _log.debug("return %d" % len(rows))
         return rows
 
 if __name__ == "__main__":

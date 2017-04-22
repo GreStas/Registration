@@ -68,7 +68,7 @@ class Config(object):
         for option in options:
             if self.options[option['name']] is None and 'section' in option:
                 try: self.options[option['name']] = config.get(option['section'], option['name'])
-                except configparser.Error: pass
+                except ConfigParser.Error: pass
 
 
 if __name__ == "__main__":

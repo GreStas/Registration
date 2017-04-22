@@ -1,5 +1,20 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+""" AppProto protocol specification
+Sender send a command in JSON:
+    {
+        'cmnd': str,
+        'size': int=size_of_data_in_bytes_,_can_be_None
+    }
+Recipient send answer:
+  str='OK'|'NO'
+      APP_PROTO_OK = 'OK' # Ready to recieve data
+      APP_PROTO_NO = 'NO' # Cancel to recieve data
+Sender send data in JSON string already sent size.
+
+send_cmnd > recv_cmnd, send_answer > recv_answer
+send_signal > recv_signal
+"""
 
 import json
 from threading import RLock
@@ -8,9 +23,12 @@ from threading import RLock
 class Error(RuntimeError):
     pass
 
-APP_PROTO_OK = 'OK'
-APP_PROTO_NO = 'NO'
-APP_PROTO_ERROR = 'ERROR'
+
+APP_PROTO_SIG_LEN = 2
+APP_PROTO_SIG_OK = 'OK'
+APP_PROTO_SIG_NO = 'NO'
+APP_PROTO_SIG_ER = 'ER'
+APP_PROTO_SIGNALS = {APP_PROTO_SIG_OK, APP_PROTO_SIG_NO, APP_PROTO_SIG_ER}
 
 
 class AppProto(object):
@@ -21,26 +39,40 @@ class AppProto(object):
         self._send_rlock = RLock()
         self._recv_rlock = RLock()
 
-    def send_OK(self):
+    def send_signal(self, signal):
+        if signal not in APP_PROTO_SIGNALS:
+            raise Error("Unknown signal '%s'" % signal)
         with self._send_rlock:
-            self.sock.send(APP_PROTO_OK)
+            self.sock.send(signal)
 
-    def send_NO(self):
-        with self._send_rlock:
-            self.sock.send(APP_PROTO_NO)
+    def recv_signal(self):
+        """ Recieve signal sent send_OK or send_NO"""
+        with self._recv_rlock:
+            signal = self.sock.recv(APP_PROTO_SIG_LEN)
+            if signal not in APP_PROTO_SIGNALS:
+                raise Error("Unknown signal '%s'" % signal)
+            return signal
 
-    def _send_answer(self, answ, mesg):
+    def send_answer(self, answ, mesg):
         with self._send_rlock:
-            self.sock.send(json.dumps({
-                'answ': answ,
-                'mesg': mesg,
-            }))
+            self.sock.send(json.dumps(
+                {'answ': answ,
+                 'mesg': mesg}
+            ))
+
+    def recv_answer(self, bufsize=1024):
+        """ Return recieved message or raise exception Error"""
+        with self._recv_rlock:
+            data = json.loads(self.sock.recv(bufsize))
+            if data['answ'] == APP_PROTO_SIG_ER:
+                raise Error(data['mesg'])
+            return data
 
     def send_ERROR(self, mesg):
-        self._send_answer(APP_PROTO_ERROR, mesg)
+        self.send_answer(APP_PROTO_SIG_ER, mesg)
 
     def send_SUCCESS(self, mesg=None):
-        self._send_answer(APP_PROTO_OK, mesg)
+        self.send_answer(APP_PROTO_SIG_OK, mesg)
 
     def send_cmnd(self, cmnd, data=None):
         with self._send_rlock:
@@ -52,32 +84,16 @@ class AppProto(object):
             self.sock.send(json.dumps({'cmnd': cmnd, 'size': size}))
             if size == 0:
                 return
-            if self.recv_OK():
+            if self.recv_signal() == APP_PROTO_SIG_OK:
                 self.sock.send(json_data)
             else:
-                raise Error("Not recieve command header delivery")
-
-    def recv_OK(self):
-        with self._recv_rlock:
-            try:
-                return self.sock.recv(2) == APP_PROTO_OK
-            except IOError:
-                return False
-
-    def recv_answer(self, bufsize=1024):
-        """ На выходе mesg или исключение Error"""
-        with self._recv_rlock:
-            data = json.loads(self.sock.recv(bufsize))
-            if data['answ'] == APP_PROTO_ERROR:
-                raise Error(data['mesg'])
-            elif data['answ'] == APP_PROTO_OK:
-                return data['mesg']
+                raise Error("Recieved not delivery signal")
 
     def recv_cmnd(self, bufsize=1024):
         """ На выходе data или None или исключение Error"""
         with self._recv_rlock:
             raw_data = self.sock.recv(bufsize)
-            if not raw_data:
+            if not raw_data:  # Проверка на то, что Клиент не закрыл сокет
                 return None
             header = json.loads(raw_data)
             try:
@@ -87,11 +103,13 @@ class AppProto(object):
                 mesg = "Invalid header:'%s'" % e.message
                 self.send_ERROR(mesg)
                 raise Error(mesg)
-            self.send_OK()
+            if size == 0:
+                return None
+            self.send_signal(APP_PROTO_SIG_OK)
             json_data = ''
             while size > 0:
                 raw_data = self.sock.recv(bufsize)
                 json_data += raw_data
                 size -= len(raw_data)
-            return {'cmnd':cmnd, 'data':json.loads(json_data)}
-
+            return {'cmnd': cmnd,
+                    'data': json.loads(json_data)}
