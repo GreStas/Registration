@@ -18,6 +18,8 @@ send_signal > recv_signal
 
 import json
 from threading import RLock
+import logging
+_log = logging.getLogger("AppProto")
 
 
 class Error(RuntimeError):
@@ -40,6 +42,7 @@ class AppProto(object):
         self._recv_rlock = RLock()
 
     def send_signal(self, signal):
+        _log.debug(signal)
         if signal not in APP_PROTO_SIGNALS:
             raise Error("Unknown signal '%s'" % signal)
         with self._send_rlock:
@@ -49,11 +52,13 @@ class AppProto(object):
         """ Recieve signal sent send_OK or send_NO"""
         with self._recv_rlock:
             signal = self.sock.recv(APP_PROTO_SIG_LEN)
+            if __debug__: _log.debug(signal)
             if signal not in APP_PROTO_SIGNALS:
                 raise Error("Unknown signal '%s'" % signal)
             return signal
 
     def send_answer(self, answ, mesg):
+        if __debug__: _log.debug("('%s','%s')" % (answ, mesg))
         with self._send_rlock:
             self.sock.send(json.dumps(
                 {'answ': answ,
@@ -64,6 +69,7 @@ class AppProto(object):
         """ Return recieved message or raise exception Error"""
         with self._recv_rlock:
             data = json.loads(self.sock.recv(bufsize))
+            if __debug__: _log.debug(data)
             if data['answ'] == APP_PROTO_SIG_ER:
                 raise Error(data['mesg'])
             return data
@@ -75,16 +81,21 @@ class AppProto(object):
         self.send_answer(APP_PROTO_SIG_OK, mesg)
 
     def send_cmnd(self, cmnd, data=None):
+        if __debug__: _log.debug(cmnd, data)
         with self._send_rlock:
             if data is None:
                 size = 0
             else:
                 json_data = json.dumps(data)
                 size = len(json_data)
+            if __debug__: _log.debug({'cmnd': cmnd, 'size': size})
             self.sock.send(json.dumps({'cmnd': cmnd, 'size': size}))
             if size == 0:
                 return
-            if self.recv_signal() == APP_PROTO_SIG_OK:
+            if __debug__: _log.debug("Wait signal...")
+            signal = self.recv_signal()
+            if __debug__: _log.debug("...", signal)
+            if signal == APP_PROTO_SIG_OK:
                 self.sock.send(json_data)
             else:
                 raise Error("Recieved not delivery signal")
@@ -93,6 +104,7 @@ class AppProto(object):
         """ На выходе data или None или исключение Error"""
         with self._recv_rlock:
             raw_data = self.sock.recv(bufsize)
+            if __debug__: _log.debug(raw_data)
             if not raw_data:  # Проверка на то, что Клиент не закрыл сокет
                 return None
             header = json.loads(raw_data)
@@ -105,11 +117,13 @@ class AppProto(object):
                 raise Error(mesg)
             if size == 0:
                 return None
+            if __debug__: _log.debug("Size=%d, send signal '%s'" %(size, APP_PROTO_SIG_OK))
             self.send_signal(APP_PROTO_SIG_OK)
             json_data = ''
             while size > 0:
                 raw_data = self.sock.recv(bufsize)
                 json_data += raw_data
                 size -= len(raw_data)
+            if __debug__: _log.debug({'cmnd': cmnd, 'data': json_data})
             return {'cmnd': cmnd,
                     'data': json.loads(json_data)}
