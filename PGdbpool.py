@@ -64,7 +64,7 @@ class eSQLexec(Error): pass
 def raiseSQLexec(p_error):
     """ преобразует словарь p_error в вызов исключения eSQLexec"""
     if p_error["errno"] is None or p_error["errno"] == 0:
-        if __debug__: _log.debug(str(p_error))
+        # if __debug__: _log.debug(str(p_error))
         return
     if __debug__: _log.error(str(p_error))
     raise eSQLexec(

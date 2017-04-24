@@ -7,27 +7,16 @@
 # 2. Gather
 # 3. RegApprove
 # 5. Garbage
-
 # Import standart modules
 # from time import sleep
 import sys
 from random import randint
 import datetime
-
 # Import 3rd-parties modules
-try:
-    from faker import Factory
-    from faker.config import AVAILABLE_LOCALES
-except ImportError, info:
-    print "Import Error:", info
-    sys.exit()
-
+from faker import Factory
+from faker.config import AVAILABLE_LOCALES
 # Import my modules
-try:
-    from config import Config
-except ImportError, info:
-    print "Import user's modules error:", info
-    sys.exit()
+from config import Config
 
 cfg = Config(
     [
@@ -60,20 +49,71 @@ _log = logging.getLogger("TestSockSrvr")
 _log.debug("Started")
 
 # Import my modules
-try:
-    import regclient
-except ImportError, info:
-    print "Import user's modules error:", info
-    sys.exit()
+# import regclient
+import reginterface
+
 
 ###
 #   MAIN
 ###
 
-client = regclient.RegClient(srvrhost, srvrport)
+client = reginterface.RegClientProto(srvrhost, srvrport)
+
+fake = Factory.create("ru_RU")
+request_id = client.SaveRequest(
+    fake.email(),
+    fake.name(),
+    fake.password(length=10,
+                  special_chars=True,
+                  digits=True,
+                  upper_case=True,
+                  lower_case=True),
+)
+print "Test SaveRequest:", request_id
+
+client = reginterface.RegClientProto(srvrhost, srvrport)
+rows = client.Gather(
+    fields = [('authcode', None),
+              ('id', "=%d" % request_id)],
+    limit = 1,
+)
+authcode = rows[0][0]
+print 'Authcode(%d)=%s' % (request_id, authcode)
+
+client = reginterface.RegClientProto(srvrhost, srvrport)
+client.RegApprove(authcode)
+print 'Approve authcode(%d)=%s successfully' % (request_id, authcode)
+
+client = reginterface.RegClientProto(srvrhost, srvrport)
 print datetime.datetime.now()
-rows = client.get_not_sent(1)
+rows = client.Gather(
+    fields=[('id', None),
+            ('logname', None),
+            ('alias', None),
+            ('authcode', None),
+            ('status', "='requested'")],
+    limit = 0,
+)
 print "Getting %d rows from Registration for send_mail()" % len(rows)
+for row in rows:
+    request_id, logname, alias, authcode, status = row
+    try:
+        client = reginterface.RegClientProto(srvrhost, srvrport)
+        client.SendMail(request_id, logname, alias, authcode)
+    except reginterface.Error as e:
+       _log.error("SendMail is unsuccessfull: %s" % e.message)
+       continue
+
+print datetime.datetime.now()
+client = reginterface.RegClientProto(srvrhost, srvrport)
+print client.Garbage(60*60*24*1)
+print datetime.datetime.now()
+
+_log.debug("Finished.")
+sys.exit(0)
+
+
+
 for row in rows:
     if __debug__: print row
     request_id, logname, alias, authcode, status = row
@@ -83,6 +123,8 @@ for row in rows:
         _log.error("SendMail is unsuccessfull: %s" % e.message)
         continue
 print datetime.datetime.now()
+
+
 
 fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
 # fakers.append(Factory.create("en_US"))
@@ -118,8 +160,6 @@ for ii in xrange(len(fakers)):
     if __debug__: print '\n--- Finished --->\n'
     s = raw_input('Press any key to continue...')
 print "Main cicle finished at ", datetime.datetime.now()
-_log.debug("Finished.")
-sys.exit(0)
 
 print datetime.datetime.now()
 client.Garbage(60*60*24*10)

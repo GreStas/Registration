@@ -78,6 +78,7 @@ class RegWorker(object):
         "errRegStatusToRejected": -5,
         "errRejected": -6,
         "errRegStatusToRegistered": -7,
+        "errUnicode": -8,
         "errSQL": -600,
         "errNoDataFound": -601,
     }
@@ -89,6 +90,7 @@ class RegWorker(object):
         -5: "Cannot set registrations.status to 'rejected'",
         -6: "User registration request was rejected",
         -7: "Cannot set registrations.status to 'registered'",
+        -8: "Cannot encode or decode unicode",
         -600: "SQL error",
         -601: "No data found",
     }
@@ -246,6 +248,10 @@ class RegWorker(object):
                 # if __debug__: self._log.debug("After insert into registration dbconn.error is {%s}" % str(dbconn.error))
                 dbconn.commit()
                 # if __debug__: self._log.debug("After commit dbconn.error is {%s}" % str(dbconn.error))
+            except UnicodeEncodeError as e:
+                request_id = RegWorker.ErrCode("errUnicode")
+                if __debug__: self._log.debug("errUnicode")
+                raise
             except eSQLexec as e:
                 request_id = RegWorker.ErrCode("errInsRegistrations")
                 if __debug__: self._log.debug("errInsRegistrations")
@@ -339,13 +345,15 @@ class RegWorker(object):
             dbconn.commit()
         except eSQLexec as e:
             if __debug__: self._log.error("eSQLexec %s" % str(e))
-            pass
+            self._dbpool.disconnect(dbconn.name)
+            return RegWorker.ErrCode("errSQL")
         else:
             self._dbpool.disconnect(dbconn.name)
         if __debug__: self._log.debug("Finished")
+        return RegWorker.ErrCode("errNone")
 
     def Gather(self,
-               fields,  # list( {"название поля": "фильтр"} )
+               fields,  # list( ("название поля", "фильтр") )
                limit=1,  # ограничение по количеству строк
                ):  # список кортежей
         """ RegWorker.Gather(): list(touple())

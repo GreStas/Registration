@@ -1,19 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 """ AppProto protocol specification
-Sender send a command in JSON:
-    {
-        'cmnd': str,
-        'size': int=size_of_data_in_bytes_,_can_be_None
-    }
-Recipient send answer:
-  str='OK'|'NO'
-      APP_PROTO_OK = 'OK' # Ready to recieve data
-      APP_PROTO_NO = 'NO' # Cancel to recieve data
-Sender send data in JSON string already sent size.
 
-send_cmnd > recv_cmnd, send_answer > recv_answer
-send_signal > recv_signal
+Обмен всегда однофазный:
+1. Инициатор высылает все данные одним пакетом
+2. Получатель всегда отвечает одним пакетом
+3. Пакеты бывают двух типов
+3.1. rawdate - бинарная строка
+3.2. head - структурированный пакет неопределённого размера менее, чем bufsize (задан в конструкторе).
+    Пакеты всегда состоят из словаря, упакованного JSON. Структура словаря:
+        'head': строка из 4 символов
+        'mesg': строка, параметр уточняющий заголовок
+        'data': свободная структура, котрая будет интерпретироваться самим приложением
 """
 
 import json
@@ -26,6 +24,39 @@ class Error(RuntimeError):
     pass
 
 
+class AppProto(object):
+    """ Использует уже установленное соединение self.sock:socket.socket для отправки и приёма JSON"""
+
+    def __init__(self, sock, bufsize=1024):
+        self.sock = sock
+        self.bufsize = bufsize
+        self._send_rlock = RLock()
+        self._recv_rlock = RLock()
+
+    def send_head(self, head, mesg, data):
+        with self._send_rlock:
+            self.sock.sendall(json.dumps({'head': head, 'mesg': mesg, 'data': data}))
+
+    def recv_head(self):
+        with self._recv_rlock:
+            raw_data = self.sock.recv(self.bufsize)
+            return json.loads(raw_data) if raw_data else None
+
+    def send_rawdata(self, rawdata):
+        with self._send_rlock:
+            self.sock.sendall(rawdata)
+
+    def recv_rawdata(self, size):
+        _size = size
+        with self._recv_rlock:
+            raw_data = ''
+            while _size > 0:
+                data = self.sock.recv(self.bufsize)
+                raw_data += data
+                _size -= len(data)
+            return raw_data
+
+
 APP_PROTO_SIG_LEN = 2
 APP_PROTO_SIG_OK = 'OK'
 APP_PROTO_SIG_NO = 'NO'
@@ -33,9 +64,7 @@ APP_PROTO_SIG_ER = 'ER'
 APP_PROTO_SIGNALS = {APP_PROTO_SIG_OK, APP_PROTO_SIG_NO, APP_PROTO_SIG_ER}
 
 
-class AppProto(object):
-    """ Использует уже установленное соединение self.sock:socket.socket для отправки и приёма JSON"""
-
+class AppProto1(object):
     def __init__(self, sock):
         self.sock = sock
         self._send_rlock = RLock()

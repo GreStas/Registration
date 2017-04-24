@@ -36,11 +36,16 @@ class RegClient(object):
                 {'fields': fields,
                  'limit': limit}
             )
-            if self._proto.recv_answer()['answ'] == appproto.APP_PROTO_SIG_NO:
+            data = self._proto.recv_answer()
+            if __debug__: _log.debug(data)
+            if data['answ'] == appproto.APP_PROTO_SIG_NO:
                 return []
-            self._proto.send_signal(appproto.APP_PROTO_SIG_OK)
-            return self._proto.recv_cmnd()['data']
-        except appproto.Error as e:
+            elif data['answ'] == appproto.APP_PROTO_SIG_OK:
+                self._proto.send_signal(appproto.APP_PROTO_SIG_OK)
+                return self._proto.recv_cmnd()['data']
+            else:
+                raise Error("Uexpected signal '%s'" % signal)
+        except (appproto.Error, Error) as e:
             raise Error(e.message)
 
     def get_authcode(self, request_id):
@@ -79,7 +84,9 @@ class RegClient(object):
              'alias': fake.name()},
         )
         try:
-            request_id = self._proto.recv_answer()['mesg']
+            data = self._proto.recv_answer()
+            if __debug__: _log.debug("recieved data:", data)
+            request_id = data['mesg']
         except appproto.Error as e:
             raise Error(e.message)
         return request_id

@@ -74,6 +74,7 @@ _log.debug("Started")
 try:
     from Registration import getRegWorker
     import appproto
+    import reginterface
 except ImportError, info:
     print "Import user's modules error:", info
     sys.exit()
@@ -83,18 +84,44 @@ class Error(RuntimeError):
     pass
 
 
+regworker = getRegWorker(defconnection, 1, 16)
+
 class RegHandler(SocketServer.StreamRequestHandler):
 
-    reg_worker = getRegWorker(defconnection, 1, 16)
+    def handle(self):
+        try:
+            reg = reginterface.RegServerProto(regworker, self.request)
+        except reginterface.Error as e:
+            _log.error("Registration error: '%s'" % e.message)
+        except RuntimeError as e:
+            _log.error("Runtime Error: '%s'" % e.message)
+
+class RegServer(SocketServer.ThreadingTCPServer):
+    allow_reuse_address = True
+
+
+_log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
+srvr = RegServer((srvrhost, srvrport), RegHandler)
+srvr.serve_forever()
+sleep(1)
+RegHandler.reg_worker.closeDBpool()
+_log.info("Socket server finished.")
+
+
+class RegHandler1(SocketServer.StreamRequestHandler):
+
+    reg_worker = regworker
 
     def handle(self):
         proto = appproto.AppProto(self.request)
 
         def Garbage(data):
+            if __debug__: _log.debug(data)
             RegHandler.reg_worker.Garbage(data['timealive'])
             proto.send_SUCCESS()
 
         def SendMail(data):
+            if __debug__: _log.debug(data)
             result = RegHandler.reg_worker.SendMail(
                 request_id=data['request_id'],
                 logname=data['logname'],
@@ -106,8 +133,9 @@ class RegHandler(SocketServer.StreamRequestHandler):
             proto.send_SUCCESS()
 
         def SaveRequest(data):
+            if __debug__: _log.debug(data)
             result = RegHandler.reg_worker.SaveRequest(
-                logname=data['logname'],
+            logname=data['logname'],
                 alias=data['alias'],
                 passwd=data['passwd'],
             )
@@ -116,6 +144,7 @@ class RegHandler(SocketServer.StreamRequestHandler):
             proto.send_SUCCESS(result)
 
         def RegAprove(data):
+            if __debug__: _log.debug(data)
             result = RegHandler.reg_worker.RegApprove(
                 authcode=data['authcode'],
             )
@@ -124,17 +153,21 @@ class RegHandler(SocketServer.StreamRequestHandler):
             proto.send_SUCCESS()
 
         def Gather(data):
+            if __debug__: _log.debug(data)
             rows = RegHandler.reg_worker.Gather(
                 fields=data['fields'],
                 limit=data['limit'],
             )
             if rows is None or len(rows) == 0:
                 proto.send_answer(appproto.APP_PROTO_SIG_NO, 0)
-            elif proto.recv_signal(appproto.APP_PROTO_SIG_OK):  # Если Клиент готов принимать данные
+                return
+            proto.send_answer(appproto.APP_PROTO_SIG_OK, len(rows))
+            if proto.recv_signal() == appproto.APP_PROTO_SIG_OK:  # Если Клиент готов принимать данные
                 proto.send_cmnd(datagramma['cmnd'], rows)
 
         while True:
             datagramma = proto.recv_cmnd()
+            if __debug__: _log.debug(datagramma)
             if not datagramma:
                 break
             try:
@@ -152,13 +185,3 @@ class RegHandler(SocketServer.StreamRequestHandler):
         self.request.close()
 
 
-class RegServer(SocketServer.ThreadingTCPServer):
-    allow_reuse_address = True
-
-
-_log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
-srvr = RegServer((srvrhost, srvrport), RegHandler)
-srvr.serve_forever()
-sleep(1)
-RegHandler.reg_worker.closeDBpool()
-_log.info("Socket server finished.")
