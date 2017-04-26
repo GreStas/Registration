@@ -172,6 +172,10 @@ def manies():
     print client.Garbage(60*60*24*1)
     print datetime.datetime.now()
 
+print "Started for server %s:%s" % (srvrhost, srvrport)
+print "Logfile:", logfile
+print "Logging level:", loglevel
+
 # ones()
 manies()
 
