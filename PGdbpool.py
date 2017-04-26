@@ -2,29 +2,11 @@
 #
 #   Module : PGdbworker.py
 #
-try:
-    import os
-    import sys
-    import logging
-    import multiprocessing
-    import psycopg2
-except ImportError, info:
-    print "Import Error:", info
-    sys.exit()
+import multiprocessing
+import psycopg2
+import logging
 
 
-class _Null(object):
-    def __init__(self, *args, **kwargs): pass
-    def __call__(self, *args, **kwargs): return self
-    def __getattribute__(self, name): return self
-    def __setattr__(self, name, value): pass
-    def __delattr__(self,name): pass
-
-logging.basicConfig(filename="PGdbpool.log",
-                    format="%(asctime)s pid[%(process)d].%(name)s.%(funcName)s:%(levelname)s:%(message)s",
-                    level=logging.DEBUG)
-                    # level=logging.ERROR)
-_log = _Null()  # резервируем глобальную переменную для логирования
 _log = logging.getLogger("PGdbpool")
 _log.debug("Started")
 

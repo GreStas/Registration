@@ -15,43 +15,15 @@ from future_builtins import ascii
 import sys
 import datetime
 import hashlib
-
-class _Null(object):
-    """ Класс _Null необходим для маскировки при пустом логировании """
-    def __init__(self, *args, **kwargs): pass
-
-    def __call__(self, *args, **kwargs): return self
-
-    def __getattribute__(self, name): return self
-
-    def __setattr__(self, name, value): pass
-
-    def __delattr__(self, name): pass
-
 import logging
-logging.basicConfig(
-    filename="Registration.log",
-    format="%(asctime)s pid[%(process)d].%(name)s.%(funcName)s(%(lineno)d):%(levelname)s:%(message)s",
-    level=logging.DEBUG)
-# level=logging.ERROR)
-_log = _Null()  # резервируем переменную модуля для логирования
+
 _log = logging.getLogger("Registration")
 _log.debug("Started")
 
-###
-#  Module variables
 timestamp = datetime.datetime
 
-# PGdbpool необходимо подключать после определения логирования,
-# иначе будет использоваться логирование импортированных модулей.
-try:
-    from PGdbpool import DBpool, Error, DataError, eSQLexec
-except ImportError, info:
-    print "Import user's modules error:", info
-    sys.exit()
+from PGdbpool import DBpool, Error, DataError, eSQLexec
 
-###
-#  Module codes
 
 def getRegWorker(dbconn, minconn=None, maxconn=None):
     """ getRegWorker(dbconn, minconn=None, maxconn=None): RegWorker()
