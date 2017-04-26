@@ -7,17 +7,17 @@
 # 2. Gather
 # 3. RegApprove
 # 5. Garbage
-# Import standart modules
+
+
 # from time import sleep
+# from random import randint
 import sys
-from random import randint
 import datetime
-# Import 3rd-parties modules
 from faker import Factory
 from faker.config import AVAILABLE_LOCALES
-# Import my modules
-from config import Config
+import logging
 
+from config import Config
 cfg = Config(
     [
         {'name': 'loglevel', 'default': 'DEBUG', 'section': 'DEBUG', },
@@ -33,31 +33,55 @@ srvrhost    = cfg.options['srvrhost']
 srvrport    = int(cfg.options['srvrport'])
 del cfg
 
-import logging
-logging_level = {
-    'DEBUG': logging.DEBUG,
-    'INFO': logging.INFO,
-    'ERROR': logging.ERROR,
-    'CRITICAL': logging.CRITICAL,
-}
+logging_level = {'DEBUG': logging.DEBUG,
+                 'INFO': logging.INFO,
+                 'ERROR': logging.ERROR,
+                 'CRITICAL': logging.CRITICAL, }
 logging.basicConfig(
     filename=logfile,
     format="%(asctime)s pid[%(process)d].%(name)s.%(funcName)s(%(lineno)d):%(levelname)s:%(message)s",
     level=logging_level.get(loglevel, logging.NOTSET)
 )
 _log = logging.getLogger("TestSockSrvr")
-_log.debug("Started")
+_log.info("Started")
 
-# Import my modules
-# import regclient
-import reginterface
+
+from regclntproto import RegClientProto, Error as RegProtoError
+
+
+class RegClient(RegClientProto):
+    def get_authcode(self, request_id):
+        data = self.Gather(
+            fields=[('authcode', None),
+                    ('id', "=%d" % request_id)],
+            limit=1,
+        )
+        size = len(data)
+        if size == 0:
+            raise RegProtoError("No data found")
+        elif size > 1:
+            raise RegProtoError("Too many rows")
+        return data[0][0]   # нам нужно только первое поле
+
+    def get_not_sent(self, cnt=None):
+        return self.Gather(
+            fields=[('id', None),
+                    ('logname', None),
+                    ('alias', None),
+                    ('authcode', None),
+                    ('status', "='requested'")],
+            limit=cnt
+        )
+
 
 
 ###
 #   MAIN
 ###
 
-client = reginterface.RegClientProto(srvrhost, srvrport)
+
+
+client = RegClient(srvrhost, srvrport)
 
 fake = Factory.create("ru_RU")
 request_id = client.SaveRequest(
@@ -71,41 +95,29 @@ request_id = client.SaveRequest(
 )
 print "Test SaveRequest:", request_id
 
-client = reginterface.RegClientProto(srvrhost, srvrport)
-rows = client.Gather(
-    fields = [('authcode', None),
-              ('id', "=%d" % request_id)],
-    limit = 1,
-)
-authcode = rows[0][0]
+client = RegClient(srvrhost, srvrport)
+authcode = client.get_authcode(request_id)
 print 'Authcode(%d)=%s' % (request_id, authcode)
 
-client = reginterface.RegClientProto(srvrhost, srvrport)
+client = RegClient(srvrhost, srvrport)
 client.RegApprove(authcode)
 print 'Approve authcode(%d)=%s successfully' % (request_id, authcode)
 
-client = reginterface.RegClientProto(srvrhost, srvrport)
+client = RegClient(srvrhost, srvrport)
 print datetime.datetime.now()
-rows = client.Gather(
-    fields=[('id', None),
-            ('logname', None),
-            ('alias', None),
-            ('authcode', None),
-            ('status', "='requested'")],
-    limit = 0,
-)
+rows = client.get_not_sent()
 print "Getting %d rows from Registration for send_mail()" % len(rows)
 for row in rows:
     request_id, logname, alias, authcode, status = row
     try:
-        client = reginterface.RegClientProto(srvrhost, srvrport)
+        client = RegClient(srvrhost, srvrport)
         client.SendMail(request_id, logname, alias, authcode)
-    except reginterface.Error as e:
+    except RegClientProto as e:
        _log.error("SendMail is unsuccessfull: %s" % e.message)
        continue
 
 print datetime.datetime.now()
-client = reginterface.RegClientProto(srvrhost, srvrport)
+client = RegClient(srvrhost, srvrport)
 print client.Garbage(60*60*24*1)
 print datetime.datetime.now()
 
