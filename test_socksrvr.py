@@ -74,107 +74,106 @@ class RegClient(RegClientProto):
         )
 
 
-
 ###
 #   MAIN
 ###
 
+def ones():
+    client = RegClient(srvrhost, srvrport)
+    fake = Factory.create("ru_RU")
+    request_id = client.SaveRequest(
+        fake.email(),
+        fake.name(),
+        fake.password(length=10,
+                      special_chars=True,
+                      digits=True,
+                      upper_case=True,
+                      lower_case=True),
+    )
+    print "Test SaveRequest:", request_id
 
+    client = RegClient(srvrhost, srvrport)
+    authcode = client.get_authcode(request_id)
+    print 'Authcode(%d)=%s' % (request_id, authcode)
 
-client = RegClient(srvrhost, srvrport)
+    client = RegClient(srvrhost, srvrport)
+    client.RegApprove(authcode)
+    print 'Approve authcode(%d)=%s successfully' % (request_id, authcode)
 
-fake = Factory.create("ru_RU")
-request_id = client.SaveRequest(
-    fake.email(),
-    fake.name(),
-    fake.password(length=10,
-                  special_chars=True,
-                  digits=True,
-                  upper_case=True,
-                  lower_case=True),
-)
-print "Test SaveRequest:", request_id
+    client = RegClient(srvrhost, srvrport)
+    print datetime.datetime.now()
+    rows = client.get_not_sent()
+    print "Getting %d rows from Registration for send_mail()" % len(rows)
+    for row in rows:
+        request_id, logname, alias, authcode, status = row
+        try:
+            client = RegClient(srvrhost, srvrport)
+            client.SendMail(request_id, logname, alias, authcode)
+        except RegClientProto as e:
+           _log.error("SendMail is unsuccessfull: %s" % e.message)
+           continue
 
-client = RegClient(srvrhost, srvrport)
-authcode = client.get_authcode(request_id)
-print 'Authcode(%d)=%s' % (request_id, authcode)
+    print datetime.datetime.now()
+    client = RegClient(srvrhost, srvrport)
+    print client.Garbage(60*60*24*1)
+    print datetime.datetime.now()
 
-client = RegClient(srvrhost, srvrport)
-client.RegApprove(authcode)
-print 'Approve authcode(%d)=%s successfully' % (request_id, authcode)
+def manies():
+    # fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
+    # fakers = []
+    # fakers.append(Factory.create("en_US"))
+    # fakers.append(Factory.create("ru_RU"))
+    fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES if lcl[0:2] in ('en', 'ru', 'uk')]
+    fakers_max = len(fakers) - 1
 
-client = RegClient(srvrhost, srvrport)
-print datetime.datetime.now()
-rows = client.get_not_sent()
-print "Getting %d rows from Registration for send_mail()" % len(rows)
-for row in rows:
-    request_id, logname, alias, authcode, status = row
-    try:
-        client = RegClient(srvrhost, srvrport)
-        client.SendMail(request_id, logname, alias, authcode)
-    except RegClientProto as e:
-       _log.error("SendMail is unsuccessfull: %s" % e.message)
-       continue
+    print "Main cicle started at ", datetime.datetime.now()
+    for i in xrange(10000):
+        if __debug__: print '\n<--- Started ---\n'
 
-print datetime.datetime.now()
-client = RegClient(srvrhost, srvrport)
-print client.Garbage(60*60*24*1)
-print datetime.datetime.now()
+        fake = fakers[i % fakers_max]
+        try:
+            client = RegClient(srvrhost, srvrport)
+            request_id = client.SaveRequest(
+                fake.email(),
+                fake.name(),
+                fake.password(length=10,
+                                   special_chars=True,
+                                   digits=True,
+                                   upper_case=True,
+                                   lower_case=True),
+            )
+            if __debug__: _log.debug('Request_id=%d' % request_id)
+        except RegProtoError as e:
+            _log.error("SaveRequest is unsuccessfull: %s" % e.message)
+            continue
+
+        try:
+            client = RegClient(srvrhost, srvrport)
+            authcode = client.get_authcode(request_id)
+            if __debug__: _log.debug('Authcode(%d)=%s' % (request_id, authcode))
+        except RegProtoError as e:
+            _log.error("GetAuthcode is unsuccessfull: %s" % e.message)
+            continue
+
+        try:
+            client = RegClient(srvrhost, srvrport)
+            client.RegApprove(authcode)
+            if __debug__: _log.debug('Approve authcode(%d)=%s successfully' % (request_id, authcode))
+        except RegProtoError as e:
+            _log.error("RegApprove is unsuccessfull: %s" % e.message)
+            continue
+
+        if __debug__: print '\n--- Finished --->\n'
+        # raw_input('Press any key to continue...')
+    print "Main cicle finished at ", datetime.datetime.now()
+
+    print datetime.datetime.now()
+    client = RegClient(srvrhost, srvrport)
+    print client.Garbage(60*60*24*1)
+    print datetime.datetime.now()
+
+# ones()
+manies()
 
 _log.debug("Finished.")
 sys.exit(0)
-
-
-
-for row in rows:
-    if __debug__: print row
-    request_id, logname, alias, authcode, status = row
-    try:
-        client.SendMail(request_id, logname, alias, authcode)
-    except regclient.Error as e:
-        _log.error("SendMail is unsuccessfull: %s" % e.message)
-        continue
-print datetime.datetime.now()
-
-
-
-fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
-# fakers.append(Factory.create("en_US"))
-# fakers.append(Factory.create("ru_RU"))
-fakers_max = len(fakers) - 1
-
-
-print "Main cicle started at ", datetime.datetime.now()
-for ii in xrange(len(fakers)):
-    if __debug__: print '\n<--- Started ---\n'
-
-    try:
-        request_id = client.SaveRequest(fakers[randint(0, fakers_max)])
-    except regclient.Error as e:
-        _log.error("SaveRequest is unsuccessfull: %s" % e.message)
-        continue
-    if __debug__: print "SaveRequest is successfull"
-
-    # try:
-    #     authcode = client.get_authcode(request_id)
-    # except regclient.Error as e:
-    #     _log.error("GetAuthcode is unsuccessfull: %s" % e.message)
-    #     continue
-    # if __debug__: print "GetAuthcode is successfull"
-    #
-    # try:
-    #     client.RegApprove(authcode)
-    # except regclient.Error as e:
-    #     _log.error("RegApprove is unsuccessfull: %s" % e.message)
-    #     continue
-    # if __debug__: print "RegApprove is successfull"
-
-    if __debug__: print '\n--- Finished --->\n'
-    s = raw_input('Press any key to continue...')
-print "Main cicle finished at ", datetime.datetime.now()
-
-print datetime.datetime.now()
-client.Garbage(60*60*24*10)
-print datetime.datetime.now()
-
-_log.debug("Finished.")

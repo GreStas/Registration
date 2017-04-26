@@ -88,7 +88,6 @@ class RegClientProto(object):
                               MESG_REGAPPROVE,
                               {'authcode': authcode, })
         header = self._proto.recv_head()
-        print header
         if not header:
             raise Error("RegApprove returned nothing")
         elif header['head'] == HEAD_ANSW:
@@ -103,7 +102,6 @@ class RegClientProto(object):
                               MESG_GARBAGE,
                               {'timealive': timealive, })
         header = self._proto.recv_head()
-        print header
         if not header:
             raise Error("Garbage returned nothing")
         elif header['head'] == HEAD_ANSW:

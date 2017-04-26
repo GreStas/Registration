@@ -71,7 +71,7 @@ class AppProto1(object):
         self._recv_rlock = RLock()
 
     def send_signal(self, signal):
-        _log.debug(signal)
+        if __debug__: _log.debug(signal)
         if signal not in APP_PROTO_SIGNALS:
             raise Error("Unknown signal '%s'" % signal)
         with self._send_rlock:

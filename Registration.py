@@ -239,8 +239,8 @@ class RegWorker(object):
                                 % (request_id, RegWorker.ErrMsgs[request_id]))
         finally:
             self._dbpool.disconnect(dbconn.name)
-        # if request_id > 0:
-        #     self.SendMail(request_id, logname, alias, authcode)
+        if request_id > 0:
+            self.SendMail(request_id, logname, alias, authcode)
         return request_id
 
     def RegApprove(self, authcode):
