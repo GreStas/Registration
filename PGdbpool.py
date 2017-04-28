@@ -14,42 +14,70 @@ _log.debug("Started")
 # Common module exception Error
 class Error(RuntimeError):
     def __init__(self, errno, errspec, errmsg, remark=None):
-        self.args = (errno, errspec, errmsg, remark)
         self.errno = errno
         self.errspec = errspec
         self.errmsg = errmsg
         self.remark = remark
-        # self.msg_detail = psycopg2.Error.diag.message_detail
-    def ePrint(self):
-        if self.remark is not None : print self.remark
+
+    def print_error(self):
+        if self.remark is not None:
+            print self.remark
         print "pgcode =", self.errno
         print "pgerror =", self.errspec
         print "pgmessage = ", self.errmsg
-# Ошибки, связанные с неправильным использованием интерфейса к базе данных, но не с самой БД.
-class InterfaceError(Error): pass
-# Ошибки, имеющие отношение к самой БД.
-class DatabaseError(Error): pass
-# Ошибки, связанные с обработкой данных. Например, недопустимое преобразование типов, деление на ноль итд.
-class DataError(Error): pass
-# Ошибки, связанные с работой самой БД. Например, потеря соединения.
-class OperationalError(Error): pass
-# Ошибки, связанные с нарушением целостности БД.
-class IntegrityError(Error): pass
-# Внутренняя ошибка БД. Например, обращение к устаревшему курсору.
-class InternalError(Error): pass
-# Ошибки в запросах SQL.
-class ProgrammingError(Error): pass
-# Ошибки обращения к методам программного интерфейса, которые не поддерживаются БД.
-class NotSupportedError(Error): pass
-# Ошибки в стиле dbworker
-class eSQLexec(Error): pass
-def raiseSQLexec(p_error):
-    """ преобразует словарь p_error в вызов исключения eSQLexec"""
+
+
+class InterfaceError(Error):
+    """Ошибки, связанные с неправильным использованием интерфейса к базе данных, но не с самой БД."""
+    pass
+
+
+class DatabaseError(Error):
+    """Ошибки, имеющие отношение к самой БД."""
+    pass
+
+
+class DataError(Error):
+    """Ошибки, связанные с обработкой данных. Например, недопустимое преобразование типов, деление на ноль итд."""
+    pass
+
+
+class OperationalError(Error):
+    """Ошибки, связанные с работой самой БД. Например, потеря соединения."""
+    pass
+
+
+class IntegrityError(Error):
+    """Ошибки, связанные с нарушением целостности БД."""
+    pass
+
+
+class InternalError(Error):
+    """Внутренняя ошибка БД. Например, обращение к устаревшему курсору."""
+    pass
+
+
+class ProgrammingError(Error):
+    """Ошибки в запросах SQL."""
+    pass
+
+
+class NotSupportedError(Error):
+    """Ошибки обращения к методам программного интерфейса, которые не поддерживаются БД."""
+    pass
+
+
+class SQLexecError(Error):
+    """Ошибки в стиле dbworker"""
+    pass
+
+
+def raise_sql_exec(p_error):
+    """ преобразует словарь p_error в вызов исключения SQLexecError"""
     if p_error["errno"] is None or p_error["errno"] == 0:
-        # if __debug__: _log.debug(str(p_error))
         return
-    if __debug__: _log.error(str(p_error))
-    raise eSQLexec(
+    _log.error(str(p_error))
+    raise SQLexecError(
         errno=p_error["errno"],
         errspec=p_error["errspec"],
         errmsg=p_error["errmsg"],
@@ -59,44 +87,57 @@ def raiseSQLexec(p_error):
 
 class DBworker(object):
     instance = 0
+
     def __init__(self, p_name, p_lock, p_input, p_output, p_client_evt, p_server_evt, p_error):
-        self._log = logging.getLogger("DBworker[%s][%s]" % (self.__hash__(),p_name))
+        self._log = logging.getLogger("DBworker[%s][%s]" % (self.__hash__(), p_name))
         self.name = p_name
         self._lock = p_lock
         self._input = p_input
         self._output = p_output
-        self._client_evt = p_client_evt; self._client_evt.clear()
-        self._server_evt = p_server_evt; self._server_evt.clear()
-        self.error = p_error; self._ClearError()
-        if __debug__: self._log.debug("Created instance %d" % DBworker.instance)
+        self._client_evt = p_client_evt
+        self._client_evt.clear()
+        self._server_evt = p_server_evt
+        self._server_evt.clear()
+        self.error = p_error
+        self._clear_error()
+        if __debug__:
+            self._log.debug("Created instance %d" % DBworker.instance)
         DBworker.instance += 1
 
-    def _ClearError(self):
-        self.error = {"errno": 0, "errspec": None, "errmsg": None, "remark": None, }
+    def _clear_error(self):
+        self.error = {"errno": 0, "errspec": None, "errmsg": None, "remark": None}
 
     def _pass_to_server(self, data):
         with self._lock:
             self._input.put(data)
             # pause client side
             if self._client_evt.is_set():
-                if __debug__: self._log.debug("Clearing client_evt...")
+                if __debug__:
+                    self._log.debug("Clearing client_evt...")
                 self._client_evt.clear()
-                if __debug__: self._log.debug("    ...has cleared client_evt.")
+                if __debug__:
+                    self._log.debug("    ...has cleared client_evt.")
             else:
-                if __debug__: self._log.warn("client_evt already cleared.")
+                if __debug__:
+                    self._log.warn("client_evt already cleared.")
                 pass
             # continue server side
             if not self._server_evt.is_set():
-                if __debug__: self._log.debug("Setting server_evt...")
+                if __debug__:
+                    self._log.debug("Setting server_evt...")
                 self._server_evt.set()
-                if __debug__: self._log.debug("    ...has set server_evt.")
+                if __debug__:
+                    self._log.debug("    ...has set server_evt.")
             else:
-                if __debug__: self._log.warn("server_evt already set.")
+                if __debug__:
+                    self._log.warn("server_evt already set.")
                 pass
-        if __debug__: self._log.debug("is waiting...")
+        if __debug__:
+            self._log.debug("is waiting...")
         self._client_evt.wait()
-        if __debug__: self._log.debug("    ...recieved error description %s" % str(self.error))
-        raiseSQLexec(self.error)
+        if __debug__:
+            self._log.debug("    ...recieved error description %s" % str(self.error))
+        raise_sql_exec(self.error)
 
     def close(self):
         """ close is DBworker destructor
@@ -112,7 +153,8 @@ class DBworker(object):
             del self._server_evt
             del self.error
         del self._lock
-        if __debug__: self._log.debug("Cleared successfully.")
+        if __debug__:
+            self._log.debug("Cleared successfully.")
 
     def commit(self):
         self._pass_to_server(("commit", None))
@@ -120,50 +162,61 @@ class DBworker(object):
     def rollback(self):
         self._pass_to_server(("rollback", None))
 
-    def execSimpleSQL(self, sql):
-        if __debug__: self._log.debug("sending ('%s','%s')" % ("execSimpleSQL", sql))
+    def exec_simple_sql(self, sql):
+        if __debug__:
+            self._log.debug("sending ('%s','%s')" % ("execSimpleSQL", sql))
         self._pass_to_server(("execSimpleSQL", sql))
 
-    def execGatherSQL(self, sql):
-        if __debug__: self._log.debug("sending ('%s','%s')" % ("execGatherSQL", sql))
+    def exec_gather_sql(self, sql):
+        if __debug__:
+            self._log.debug("sending ('%s','%s')" % ("execGatherSQL", sql))
         self._pass_to_server(("execGatherSQL", sql))
 
-    def _FetchRows(self, fetchscope):
-        if __debug__: self._log.debug("Running for %d rows ..." % fetchscope)
+    def _fetch_rows(self, fetchscope):
+        if __debug__:
+            self._log.debug("Running for %d rows ..." % fetchscope)
         self._pass_to_server(("fetch", fetchscope))
         rows = list()
         while not self._output.empty():
             row = self._output.get()
-            if __debug__: self._log.debug("has got %s" % str(row))
+            if __debug__:
+                self._log.debug("has got %s" % str(row))
             if row is None:
                 break
             else:
                 rows.append(row)
-        if __debug__: self._log.debug("return %s" % str(rows))
+        if __debug__:
+            self._log.debug("return %s" % str(rows))
         return rows
 
-    def fetchone(self):
-        return self._FetchRows(1)
+    def fetch_one(self):
+        return self._fetch_rows(1)
 
-    def fetchmany(self,count):
-        return self._FetchRows(count)
+    def fetch_many(self, count):
+        return self._fetch_rows(count)
 
     def fetchall(self):
-        return self._FetchRows(0)
+        return self._fetch_rows(0)
 
 
 class FetchProperty(object):
-    def __init__(self,value=0):
+    def __init__(self, value=0):
         self.name = "_fetch"
-        if not isinstance(value,int) or value < 0: raise TypeError("Value must be int>=0")
+        if not isinstance(value, int) or value < 0:
+            raise TypeError("Value must be int>=0")
         self.value = value
+
     def __get__(self, instance, cls):
-        return getattr(instance,self.name,self.value)
+        return getattr(instance, self.name, self.value)
+
     def __set__(self, instance, value):
-        if not isinstance(value,int) or value < 0: raise TypeError("Value must be int>=0")
+        if not isinstance(value, int) or value < 0:
+            raise TypeError("Value must be int>=0")
         self.value = value
+
     def __delete__(self, instance):
         raise AttributeError("Cannot delete attribute")
+
 
 class DBworkerPrc(multiprocessing.Process):
     """ class dbworkerprc
@@ -181,7 +234,7 @@ class DBworkerPrc(multiprocessing.Process):
                  p_error,  # Dictionary for describing error
                  ):
         multiprocessing.Process.__init__(self)
-        self._log = logging.getLogger("DBworkerPrc[%s][%s]" % (self.__hash__(),p_name))
+        self._log = logging.getLogger("DBworkerPrc[%s][%s]" % (self.__hash__(), p_name))
         self._log.debug("Started")
 
         # Process variables
@@ -189,21 +242,14 @@ class DBworkerPrc(multiprocessing.Process):
         self._lock = p_lock
         self._input = p_input
         self._output = p_output
-        self._client_evt = p_client_evt; self._client_evt.clear()
-        self._server_evt = p_server_evt; self._server_evt.clear()
-        self.error = p_error; self._ClearError()
+        self._client_evt = p_client_evt
+        self._client_evt.clear()
+        self._server_evt = p_server_evt
+        self._server_evt.clear()
+        self.error = p_error
+        self._clear_error()
         self._working = True  # Признак, что можно работать
 
-        # DB variables
-        # self.dbconn = dbconn
-        # self.pg_hostname = dbconn["pg_hostname"]
-        # self.pg_database = dbconn["pg_database"]
-        # self.pg_user = dbconn["pg_user"]
-        # self.pg_passwd = dbconn["pg_passwd"]
-        # self.pg_defschema = dbconn["pg_schema"]
-        # self.pg_defrole = dbconn["pg_role"]
-
-        # myconn & mycurr - переменные для нотации dbworker
         self._dbconn = None
         try:
             self._dbconn = psycopg2.connect(
@@ -211,7 +257,7 @@ class DBworkerPrc(multiprocessing.Process):
                 % (dbconn["pg_database"], dbconn["pg_user"], dbconn["pg_hostname"], dbconn["pg_passwd"])
             )
         except psycopg2.Error as e:
-            self._SetError(e.pgcode,e.pgerror,e.message,"Logon Error:",)
+            self._set_error(e.pgcode, e.pgerror, e.message, "Logon Error:", )
             raise InterfaceError(e.pgcode, e.pgerror, e.message, "Logon Error:")
 
         self._curr = self._dbconn.cursor()
@@ -222,20 +268,23 @@ class DBworkerPrc(multiprocessing.Process):
         self._fetchscope = FetchProperty()
 
         # Установим роль
-        if dbconn["pg_role"]: self._SetParam("role", dbconn["pg_role"])
+        if dbconn["pg_role"]:
+            self._set_param("role", dbconn["pg_role"])
         #  Включим в строку поиска схему по-умолчанию
-        if dbconn["pg_schema"]: self._SetParam("search_path", "pg_catalog,%s" % dbconn["pg_schema"])
+        if dbconn["pg_schema"]:
+            self._set_param("search_path", "pg_catalog,%s" % dbconn["pg_schema"])
 
-        if __debug__: self._log.debug("Is created.")
+        if __debug__:
+            self._log.debug("Is created.")
 
-    def _SetError(self, err_no, err_spec, err_msg, err_remark,):
+    def _set_error(self, err_no, err_spec, err_msg, err_remark, ):
         self.error = {
             "errno": err_no,
             "errspec": err_spec,
             "errmsg": err_msg,
             "remark": err_remark, }
 
-    def _ClearError(self):
+    def _clear_error(self):
         self.error = {
             "errno": 0,
             "errspec": None,
@@ -246,121 +295,152 @@ class DBworkerPrc(multiprocessing.Process):
         """ DBworkerPrc.closer(immediate=False): void"""
         if immediate:
             self._working = False
-            self._input.put((None,None))
+            self._input.put((None, None))
             self._server_evt.set()
         else:
             self._working = False
 
     def commit(self):
-        if __debug__: self._log.debug(".")
+        if __debug__:
+            self._log.debug(".")
         try:
             self._dbconn.commit()
         except psycopg2.Error as e:
-            raise eSQLexec(e.pgcode, e.pgerror, e.message, "Commit Error:")
+            raise SQLexecError(e.pgcode, e.pgerror, e.message, "Commit Error:")
 
     def rollback(self):
-        if __debug__: self._log.debug(".")
+        if __debug__:
+            self._log.debug(".")
         try:
             self._dbconn.rollback()
         except psycopg2.Error as e:
-            raise eSQLexec(e.pgcode, e.pgerror, e.message, "Rollback Error:")
+            raise SQLexecError(e.pgcode, e.pgerror, e.message, "Rollback Error:")
 
-    def execSimpleSQL(self, sql):
-        if __debug__: self._log.debug(sql)
+    def exec_simple_sql(self, sql):
+        if __debug__:
+            self._log.debug(sql)
         try:
             self._curr.execute(sql)
         except psycopg2.Error as e:
-            if __debug__ : self._log.error("pgError in '%s':" % sql)
-            raise eSQLexec(e.pgcode, e.pgerror, e.message, "execSimpleSQL")
+            if __debug__:
+                self._log.error("pgError in '%s':" % sql)
+            raise SQLexecError(e.pgcode, e.pgerror, e.message, "execSimpleSQL")
 
-    def execGatherSQL(self, sql):
-        if __debug__: self._log.debug(sql)
+    def exec_gather_sql(self, sql):
+        if __debug__:
+            self._log.debug(sql)
         try:
             self._curr.execute(sql)
         except psycopg2.Error as e:
-            if __debug__ : self._log.error("pgError in '%s'" % sql)
-            raise eSQLexec(e.pgcode, e.pgerror, e.message, "dbworkerprc[%s].execGatherSQL" % self.name)
+            self._log.error("pgError in '%s'" % sql)
+            raise SQLexecError(e.pgcode, e.pgerror, e.message, "dbworkerprc[%s].execGatherSQL" % self.name)
 
-    def _SetParam(self, param_name, value):
-        return self.execSimpleSQL("SET %s = %s" % (param_name, value))
+    def _set_param(self, param_name, value):
+        return self.exec_simple_sql("SET %s = %s" % (param_name, value))
 
     def _pass_to_client(self):
         # pause server side
         if self._server_evt.is_set():
-            if __debug__: self._log.debug("Clearing server_evt...")
+            if __debug__:
+                self._log.debug("Clearing server_evt...")
             self._server_evt.clear()
-            if __debug__: self._log.debug("    ...has cleared server_evt.")
+            if __debug__:
+                self._log.debug("    ...has cleared server_evt.")
         else:
-            if __debug__: self._log.warn("server_evt already cleared.")
+            if __debug__:
+                self._log.warn("server_evt already cleared.")
             pass
         # continue client side
         if not self._client_evt.is_set():
-            if __debug__: self._log.debug("Setting client_evt...")
+            if __debug__:
+                self._log.debug("Setting client_evt...")
             self._client_evt.set()
-            if __debug__: self._log.debug("    ...has set client_evt.")
+            if __debug__:
+                self._log.debug("    ...has set client_evt.")
         else:
-            if __debug__: self._log.warn("client_evt already set.")
+            if __debug__:
+                self._log.warn("client_evt already set.")
             pass
 
     def run(self):
         """ dbworkerprc.run():void """
-        if __debug__: self._log.debug("Running...")
+        if __debug__:
+            self._log.debug("Running...")
         while self._working:
             cmnd = None
             sql = None
             try:
-                if __debug__: self._log.debug("Waiting server_evt...")
+                if __debug__:
+                    self._log.debug("Waiting server_evt...")
                 self._server_evt.wait()   # Ждём новую команду от клиента
-                if __debug__: self._log.debug("    ...has got server_evt.")
+                if __debug__:
+                    self._log.debug("    ...has got server_evt.")
             except EOFError as e:
-                if __debug__: self._log.critical("Has got unexpected EOF of server_evt.")
+                if __debug__:
+                    self._log.critical("Has got unexpected EOF of server_evt.")
                 self._working = False
                 continue
 
-            if __debug__: self._log.debug("Waiting lock...")
+            if __debug__:
+                self._log.debug("Waiting lock...")
             with self._lock:
                 try:
 
-                    if __debug__: self._log.debug("    ...has locked")
-                    (cmnd,sql) = self._input.get()   # Раз событие пришло, то в очереди что-то должно заваляться
-                    if __debug__: self._log.debug("Has got command '%s'" % cmnd)
+                    if __debug__:
+                        self._log.debug("    ...has locked")
+                    (cmnd, sql) = self._input.get()   # Раз событие пришло, то в очереди что-то должно заваляться
+                    if __debug__:
+                        self._log.debug("Has got command '%s'" % cmnd)
 
-                    if cmnd == "commit": self.commit()
-                    elif cmnd == "rollback": self.rollback()
-                    elif cmnd == "execSimpleSQL": self.execSimpleSQL(sql)
-                    elif cmnd == "execGatherSQL": self.execGatherSQL(sql)
+                    if cmnd == "commit":
+                        self.commit()
+                    elif cmnd == "rollback":
+                        self.rollback()
+                    elif cmnd == "execSimpleSQL":
+                        self.exec_simple_sql(sql)
+                    elif cmnd == "execGatherSQL":
+                        self.exec_gather_sql(sql)
                     elif cmnd == "fetch":
                         self._fetchscope = sql
                         rows = list()
-                        if self._fetchscope == 0: rows = self._curr.fetchall()
-                        elif self._fetchscope == 1: rows = self._curr.fetchone()
-                        elif self._fetchscope > 1: rows = self._curr.fetchmany(self._fetchscope)
+                        if self._fetchscope == 0:
+                            rows = self._curr.fetchall()
+                        elif self._fetchscope == 1:
+                            rows = self._curr.fetchone()
+                        elif self._fetchscope > 1:
+                            rows = self._curr.fetchmany(self._fetchscope)
                         for row in rows:
-                            if __debug__: self._log.debug("fetch put row %s" % str(row))
+                            if __debug__:
+                                self._log.debug("fetch put row %s" % str(row))
                             self._output.put(row)
                         self._output.put(None)
-                    self._ClearError()
+                    self._clear_error()
 
-                except eSQLexec as e:
-                    self.error = {"errno":e.errno,"errspec":e.errspec,"errmsg":e.errmsg,"remark":e.remark,}
-                    if __debug__: self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
+                except SQLexecError as e:
+                    self.error = {"errno": e.errno, "errspec": e.errspec, "errmsg": e.errmsg, "remark": e.remark}
+                    if __debug__:
+                        self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
                 except Error:
                     # по любой непонятной ошибке - завершаем работу цикла
                     self.error = {"errno": e.errno, "errspec": e.errspec, "errmsg": e.errmsg, "remark": e.remark, }
-                    if __debug__: self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
+                    if __debug__:
+                        self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
                     self._working = False
                     continue
                 except EOFError as e:
-                    if __debug__: self._log.critical("Has got unexpected EOF of input queue.")
+                    if __debug__:
+                        self._log.critical("Has got unexpected EOF of input queue.")
                     self._working = False
                     continue
                 finally:
                     self._pass_to_client()
-            if __debug__: self._log.debug("    ...has unlocked.")
+            if __debug__:
+                self._log.debug("    ...has unlocked.")
 
         # финализация, если вышли из цикла не нормальным способом (continue или break)
         self._pass_to_client()
-        if __debug__: self._log.debug("Finished with last command '%s'" % cmnd)
+        if __debug__:
+            self._log.debug("Finished with last command '%s'" % cmnd)
 
 
 class DBpool(object):
@@ -393,7 +473,8 @@ class DBpool(object):
         else:
             self.minconn = minconn
             self.maxconn = maxconn
-        if __debug__: self._log.debug("cpucount:%d , minconn:%d , maxconn:%d" % (cpucount,self.minconn,self.maxconn))
+        if __debug__:
+            self._log.debug("cpucount:%d , minconn:%d , maxconn:%d" % (cpucount, self.minconn, self.maxconn))
         # Один менеджер в экземпляре класса на все просессы
         self.dbconn = dbconn
         self.manager = multiprocessing.Manager()
@@ -436,20 +517,25 @@ class DBpool(object):
         self._clients = []
 
         # Создаём и стартуем процессы
-        for iprc in range(self.minconn): self._AppendPrc()
-        if __debug__: self._log.debug("Created %d processes." % self.prccount)
+        for iprc in range(self.minconn):
+            self._append_prc()
+        if __debug__:
+            self._log.debug("Created %d processes." % self.prccount)
 
-    def _AppendPrc(self):
+    def _append_prc(self):
         """ append(void):boolean
             Добавляет ещё один процесс и запускает его
         """
         if self.prccount >= self.maxconn:
-            if __debug__: self._log.debug("Лимит процессов исчерпан")
-            return False # Лимит процессов исчерпан
+            if __debug__:
+                self._log.debug("Лимит процессов исчерпан")
+            return False    # Лимит процессов исчерпан
 
-        if __debug__: self._log.debug("Waiting jobslock ...")
+        if __debug__:
+            self._log.debug("Waiting jobslock ...")
         with self._jobslock:
-            if __debug__: self._log.debug("has got jobslock")
+            if __debug__:
+                self._log.debug("has got jobslock")
             # if __debug__: print "dbpool.append[%d]: Started" % self.prccount
 
             self._jobs.append("creating")
@@ -487,46 +573,54 @@ class DBpool(object):
                 self._processes[self.prccount].daemon = True
                 self._jobs[self.prccount] = "created"
             except Exception as e:
-                errmsg = "[%d] error:%s" % (self.prccount,e.message)
+                errmsg = "[%d] error:%s" % (self.prccount, e.message)
                 # Удалить служебные объекты и выйти
                 self._jobs[self.prccount] = "empty"
-                if __debug__: self._log.error("[%d]: status set to %s" % (self.prccount,self._jobs[self.prccount]))
+                if __debug__:
+                    self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
                 raise RuntimeError(errmsg)
-            if __debug__: self._log.debug("[%d]: status set to %s" % (self.prccount,self._jobs[self.prccount]))
+            if __debug__:
+                self._log.debug("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
             try:
                 self._processes[self.prccount].start()
-                if __debug__: self._log.debug("[%d]: started process" % self.prccount)
+                if __debug__:
+                    self._log.debug("[%d]: started process" % self.prccount)
                 self._clients.append(None)  # Обозначить, что к обработчику не присоединён ни один Клиент
                 self._jobs[self.prccount] = "ready"
-                if __debug__: self._log.debug("dbpool.append[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
+                if __debug__:
+                    self._log.debug("dbpool.append[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
             except Exception as e:
-                errmsg = "dbpool.append[%d] error:%s" % (self.prccount,e.message)
+                errmsg = "dbpool.append[%d] error:%s" % (self.prccount, e.message)
                 # Удалить процесс, служебные объекты и выйти
                 self._processes[self.prccount].close()
                 self._jobs[self.prccount] = "empty"
-                if __debug__: self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
+                if __debug__:
+                    self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
                 raise RuntimeError(errmsg)
-            if __debug__: self._log.debug("[%d]: status is set to %s" % (self.prccount, self._jobs[self.prccount]))
+            if __debug__:
+                self._log.debug("[%d]: status is set to %s" % (self.prccount, self._jobs[self.prccount]))
             self.prccount += 1
-        if __debug__: self._log.debug("jobslock is cleared.")
+        if __debug__:
+            self._log.debug("jobslock is cleared.")
 
-    def _RemovePrc(self):
+    def _remove_prc(self):
         """ remove(void):void
             останавливает последний созданный процесс
             удаляет и закрывает связанные с ним объекты
         """
         self.prccount -= 1
-        if self._clients[self.prccount] is not None: # Если какой клиент не отсоединился - отсоединяем
-            if __debug__: self._log.debug("Call disconnect for Client [%s]" % self._clients[self.prccount].name)
+        if self._clients[self.prccount] is not None:    # Если какой клиент не отсоединился - отсоединяем
+            if __debug__:
+                self._log.debug("Call disconnect for Client [%s]" % self._clients[self.prccount].name)
             self.disconnect(self._clients[self.prccount].name)
         with self._jobslock:
             self._jobs[self.prccount] = "stopping"
-            self._processes[self.prccount].close() # Останавливаем серверный процесс обработчика
+            self._processes[self.prccount].close()  # Останавливаем серверный процесс обработчика
             self._jobs[self.prccount] = "empty"
 
-    def close(self): # dbpool.close
+    def close(self):
         while self.prccount > 0:
-            self._RemovePrc()
+            self._remove_prc()
         self.manager.shutdown()
 
     def connect(self):
@@ -536,14 +630,17 @@ class DBpool(object):
         neednewprc = False
         # Найти свободный процесс и занять его
         while True:
-            if __debug__: self._log.debug("Waiting jobslock ...")
+            if __debug__:
+                self._log.debug("Waiting jobslock ...")
             with self._jobslock:
-                if __debug__: self._log.debug("has got jobslock")
+                if __debug__:
+                    self._log.debug("has got jobslock")
                 neednewprc = False
                 iprc = 0
-                if self.prccount >= self.maxconn: # добавить обработчик уже не получится
+                if self.prccount >= self.maxconn:   # добавить обработчик уже не получится
                     while not self._jobs[iprc] == "ready":
-                        if __debug__: self._log.debug("DBpool.connect: self.jobs[%d]=%s" % (iprc,self._jobs[iprc]))
+                        if __debug__:
+                            self._log.debug("DBpool.connect: self.jobs[%d]=%s" % (iprc, self._jobs[iprc]))
                         iprc += 1
                         if iprc >= self.prccount:
                             iprc = 0
@@ -552,7 +649,8 @@ class DBpool(object):
                     self._jobs[iprc] = "busy"
                 else:
                     while iprc < self.prccount:
-                        if self._jobs[iprc] == "ready": break
+                        if self._jobs[iprc] == "ready":
+                            break
                         iprc += 1
                     if iprc == self.prccount:
                         neednewprc = True
@@ -573,87 +671,32 @@ class DBpool(object):
                             self._server_evts[iprc],
                             self._errors[iprc]
                         )
-            if __debug__: self._log.debug("jobslock is cleared.")
+            if __debug__:
+                self._log.debug("jobslock is cleared.")
             if neednewprc:
-                self._AppendPrc()
+                self._append_prc()
             else:
                 break
-        if __debug__: self._log.debug("[%d]: success. Prccount = %d. New length of arrays(jobs) is %d" % (iprc,self.prccount,len(self._jobs)))
+        if __debug__:
+            self._log.debug(
+                "[%d]: success. Prccount = %d. New length of arrays(jobs) is %d"
+                % (iprc, self.prccount, len(self._jobs)))
         return self._clients[iprc]
 
     def disconnect(self, p_name):
-        if __debug__: self._log.debug("Waiting jobslock ...")
+        if __debug__:
+            self._log.debug("Waiting jobslock ...")
         with self._jobslock:
-            if __debug__: self._log.debug("Has got jobslock: jobs[%d] is %s" % (p_name,self._jobs[p_name]))
+            if __debug__:
+                self._log.debug("Has got jobslock: jobs[%d] is %s" % (p_name, self._jobs[p_name]))
             # удаляем экземпляр прокси-объекта, чтобы никто его случайно не использовал
-            if __debug__: self._log.debug("Deleting clients[%s]=%s" % (p_name,str(self._clients[p_name])))
+            if __debug__:
+                self._log.debug("Deleting clients[%s]=%s" % (p_name, str(self._clients[p_name])))
             self._clients[p_name].close()
             self._clients[p_name] = None
             # Устанавливаем статус, что процесс не занят
             self._jobs[p_name] = "ready"
-            if __debug__: self._log.debug("jobs[%d] set to %s" % (p_name,self._jobs[p_name]))
-        if __debug__: self._log.debug("jobslock is cleared.")
-
-
-if __name__ == "__main__":
-
-    defconnection = {}
-    defconnection["pg_hostname"] = "deboraws"
-    defconnection["pg_database"] = "test_db"
-    defconnection["pg_user"] = "tester"
-    defconnection["pg_passwd"] = "testing"
-    defconnection["pg_role"] = "test_db_dev1_users"
-    defconnection["pg_schema"] = "dev1"
-
-    # pause = 0.001
-
-    pool = DBpool(defconnection, minconn=2, maxconn=4)
-
-    # conn1 = pool.connect(); print "main: conn1 is process #%s" % conn1.name
-    # conn2 = pool.connect(); print "main: conn2 is process #%s" % conn2.name
-    # conn3 = pool.connect(); print "main: conn3 is process #%s" % conn3.name
-    # print "sleeping after 3 connects"
-    # time.sleep(pause)
-
-    # conn1.execSimpleSQL("select count(*) from registrations")
-
-    # pool.disconnect(conn1.name)
-    # print "main: sleeping after disconnect #1"
-    # time.sleep(pause)
-
-    conn4 = pool.connect(); print "main: conn4 is process #%s" % conn4.name
-
-    conn5 = pool.connect(); print "main: conn5 is process #%s" % conn5.name
-    # test_sql = "select count(*) from registrations"
-    test_sql = "select count(*) from registrations where logname='%s'" % "GreStas"
-    print "main.sql = '%s'" % test_sql
-    try:
-
-        print "main: Test execSimpleSQL"
-        conn4.execSimpleSQL(test_sql)
-
-        print "main: Test execGatherSQL.fetchone()"
-        conn5.execGatherSQL(test_sql)
-        rows = conn5.fetchone()
-        for row in rows: print "main fetched: ", row
-
-        # print "main: Test execGatherSQL.fetchmany(20)"
-        # conn4.execGatherSQL("select * from registrations")
-        # rows = conn4.fetchmany(20)
-        # for row in rows: print "main fetched: ", row
-
-        # print "main: Test execGatherSQL.fetchall()"
-        # conn5.execGatherSQL("select * from registrations")
-        # rows = conn5.fetchall()
-        # for row in rows: print "main fetched: ", row
-
-    except Error as e:
-        print "main: error "
-        e.ePrint()
-
-    # pool.disconnect(conn2.name)
-    # pool.disconnect(conn3.name)
-    # pool.disconnect(conn4.name)
-    # pool.disconnect(conn5.name)
-
-    pool.close()
+            if __debug__:
+                self._log.debug("jobs[%d] set to %s" % (p_name, self._jobs[p_name]))
+        if __debug__:
+            self._log.debug("jobslock is cleared.")

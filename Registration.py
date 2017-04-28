@@ -12,7 +12,6 @@
 #
 
 from future_builtins import ascii
-import sys
 import datetime
 import hashlib
 import logging
@@ -22,7 +21,7 @@ _log.debug("Started")
 
 timestamp = datetime.datetime
 
-from PGdbpool import DBpool, Error, DataError, eSQLexec
+from PGdbpool import DBpool, Error, DataError, SQLexecError
 
 
 def getRegWorker(dbconn, minconn=None, maxconn=None):
@@ -101,9 +100,9 @@ class RegWorker(object):
         dbconn = self._dbpool.connect()
         try:
             stri = "UPDATE registrations SET status='progress' where id=%d" % request_id
-            dbconn.execSimpleSQL(stri)
+            dbconn.exec_simple_sql(stri)
             # COMMIT отложен до отправки почты.
-        except eSQLexec as e:
+        except SQLexecError as e:
             if __debug__: self._log.debug("errRegStatusToProgress: eSQLexec(%s) for '%s'" % (str(e)), stri)
             self._dbpool.disconnect(dbconn.name)
             return RegWorker.ErrCode("errRegStatusToProgress")
@@ -146,9 +145,9 @@ class RegWorker(object):
                 # Проверяем на дубликат в registrations
                 stri = "select count(*) from registrations where logname='%s'" % logname
                 if __debug__: self._log.debug("Running '%s'" % stri)
-                dbconn.execGatherSQL(stri)
+                dbconn.exec_gather_sql(stri)
                 if __debug__: self._log.debug("Has run '%s'" % stri)
-                rows = dbconn.fetchone()
+                rows = dbconn.fetch_one()
                 if __debug__: self._log.debug("Has got rows %s" % str(rows))
                 if len(rows) == 0:
                     request_id = RegWorker.ErrCode("errNoDataFound")
@@ -172,9 +171,9 @@ class RegWorker(object):
 
                 # Проверяем на дубликат в users
                 stri = "select count(*) from users where logname='%s'" % logname
-                dbconn.execGatherSQL(stri)
+                dbconn.exec_gather_sql(stri)
                 if __debug__: self._log.debug("Run '%s'" % stri)
-                rows = dbconn.fetchone()
+                rows = dbconn.fetch_one()
                 if len(rows) == 0:
                     request_id = RegWorker.ErrCode("errNoDataFound")
                     if __debug__: self._log.debug("errNoDataFound")
@@ -193,7 +192,7 @@ class RegWorker(object):
                         errmsg=RegWorker.ErrMsgs[request_id],
                         remark="RegWorker.SaveRequest found dupplicate logname in users"
                     )
-            except eSQLexec as e:
+            except SQLexecError as e:
                 request_id = RegWorker.ErrCode("errSQL")
                 if __debug__: self._log.debug("errSQL")
                 raise
@@ -202,9 +201,9 @@ class RegWorker(object):
             try:
                 # Получаем новый ID запроса
                 stri = "SELECT nextval('register_id_seq')"
-                dbconn.execGatherSQL(stri)
+                dbconn.exec_gather_sql(stri)
                 if __debug__: self._log.debug("Run '%s'" % stri)
-                rows = dbconn.fetchone()
+                rows = dbconn.fetch_one()
                 request_id = rows[0]
                 if __debug__: self._log.info("has got request_id=%d" % request_id)
                 # Шифруем пароль в md5
@@ -216,7 +215,7 @@ class RegWorker(object):
                        "VALUES (%d, 'requested', '%s', '%s', '%s', '%s')" \
                        % (request_id, logname, alias, passwd5, authcode)
                 if __debug__: self._log.debug("Run '%s'" % stri)
-                dbconn.execSimpleSQL(stri)
+                dbconn.exec_simple_sql(stri)
                 # if __debug__: self._log.debug("After insert into registration dbconn.error is {%s}" % str(dbconn.error))
                 dbconn.commit()
                 # if __debug__: self._log.debug("After commit dbconn.error is {%s}" % str(dbconn.error))
@@ -224,12 +223,12 @@ class RegWorker(object):
                 request_id = RegWorker.ErrCode("errUnicode")
                 if __debug__: self._log.debug("errUnicode")
                 raise
-            except eSQLexec as e:
+            except SQLexecError as e:
                 request_id = RegWorker.ErrCode("errInsRegistrations")
                 if __debug__: self._log.debug("errInsRegistrations")
                 raise
             if __debug__: self._log.debug("Success with request_id=%d" % request_id)
-        except (eSQLexec, DataError) as e:
+        except (SQLexecError, DataError) as e:
             self._log.error(str(e))
         except RuntimeError as e:
             self._log.error("Enter in Exception block with request_id=%d : %s" % (request_id, str(e)))
@@ -266,16 +265,16 @@ class RegWorker(object):
                    "   and authcode = '%s'" \
                    % authcode
             if __debug__: self._log.debug("INSERTING INTO users for authcode=%s" % authcode)
-            dbconn.execSimpleSQL(stri)
-        except eSQLexec as e:
+            dbconn.exec_simple_sql(stri)
+        except SQLexecError as e:
             if __debug__: self._log.error("errRejected: %s" % str(e))
             try:
                 stri = "UPDATE registrations SET status='rejected' " \
                        "WHERE status='progress' AND authcode = '%s'" \
                        % authcode
-                dbconn.execSimpleSQL(stri)
+                dbconn.exec_simple_sql(stri)
                 dbconn.commit()
-            except eSQLexec as e:
+            except SQLexecError as e:
                 if __debug__: self._log.error("errRegStatusToRejected: %s" % str(e))
                 self._dbpool.disconnect(dbconn.name)
                 return RegWorker.ErrCode("errRegStatusToRejected")
@@ -288,12 +287,12 @@ class RegWorker(object):
                    "WHERE status='progress' AND authcode = '%s'" \
                    % authcode
             if __debug__: self._log.debug("Mark REGISTERED in registrations for authcode=%s" % authcode)
-            dbconn.execSimpleSQL(stri)
+            dbconn.exec_simple_sql(stri)
             if __debug__: self._log.debug("Registering of authcode=%s is success." % authcode)
             dbconn.commit()
             self._dbpool.disconnect(dbconn.name)
             return RegWorker.ErrCode("errNone")
-        except eSQLexec as e:
+        except SQLexecError as e:
             if __debug__: self._log.error("errRegStatusToRegistered: %s" % str(e))
             dbconn.rollback()
         self._dbpool.disconnect(dbconn.name)
@@ -313,9 +312,9 @@ class RegWorker(object):
                "   and (now()-created) > '%d seconds'" \
                % timealive
         try:
-            dbconn.execSimpleSQL(stri)
+            dbconn.exec_simple_sql(stri)
             dbconn.commit()
-        except eSQLexec as e:
+        except SQLexecError as e:
             if __debug__: self._log.error("eSQLexec %s" % str(e))
             self._dbpool.disconnect(dbconn.name)
             return RegWorker.ErrCode("errSQL")
@@ -355,7 +354,7 @@ class RegWorker(object):
         # rows = []
         try:
             dbconn = self._dbpool.connect()
-            dbconn.execGatherSQL(SQL)
+            dbconn.exec_gather_sql(SQL)
             rows = dbconn.fetchall()
         except Error as e:
             rows = None

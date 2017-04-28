@@ -46,9 +46,10 @@ class Config(object):
 
     def get(self, name, section=None, prefer_opt=None, default=None):
         """ Вычисляет значение параметра name
-        :param name:
-        :param prefer_opt:
-        :param section:
+        :param name: имя параметра
+        :param section: секция в INI-фйле
+        :param prefer_opt: приоритет опций над INI
+        :param default: значение по-умолчани, если нет определения ни в опциях ни в INI
         :return: value of anytype
         """
         section_, prefer_opt_ = section, prefer_opt
