@@ -1,24 +1,15 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #
-# Полный цикл обработки запроса на регистрацию:
-# 0. SendMails
-# 1. SaveRequest
-# 2. Gather
-# 3. RegApprove
-# 5. Garbage
-
 
 # from time import sleep
 # from random import randint
-import sys
+# import sys
 import datetime
 from faker import Factory
 from faker.config import AVAILABLE_LOCALES
 import logging
-
 from config import Config
-
 
 cfg = Config(
         [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.conf'}),
@@ -26,8 +17,8 @@ cfg = Config(
          (('', '--logfile'), {'action': 'store', 'type': 'string', 'dest': 'logfile'}),
          (('', '--srvrhost'), {'action': 'store', 'type': 'string', 'dest': 'srvrhost'}),
          (('', '--srvrport'), {'action': 'store', 'type': 'string', 'dest': 'srvrport'}),
-         (("-i", "--iters"), {'action': 'store', 'type': 'string', 'dest': "iterations", 'default':'1'}),
-         # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default':''}),
+         (("-i", "--iters"), {'action': 'store', 'type': 'string', 'dest': "iterations", 'default': '1'}),
+         # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default': ''}),
          ],
         prefer_opt=True,
         version='0.0.0.1',
@@ -67,7 +58,7 @@ from regclntproto import RegClientProto, Error as RegProtoError
 
 class RegClient(RegClientProto):
     def get_authcode(self, request_id):
-        data = self.Gather(
+        data = self.gather(
             fields=[('authcode', None),
                     ('id', "=%d" % request_id)],
             limit=1,
@@ -80,7 +71,7 @@ class RegClient(RegClientProto):
         return data[0][0]   # нам нужно только первое поле
 
     def get_not_sent(self, cnt=None):
-        return self.Gather(
+        return self.gather(
             fields=[('id', None),
                     ('logname', None),
                     ('alias', None),
@@ -97,7 +88,7 @@ class RegClient(RegClientProto):
 def ones():
     client = RegClient(srvrhost, srvrport)
     fake = Factory.create("ru_RU")
-    request_id = client.SaveRequest(
+    request_id = client.save_request(
         fake.email(),
         fake.name(),
         fake.password(length=10,
@@ -113,7 +104,7 @@ def ones():
     print 'Authcode(%d)=%s' % (request_id, authcode)
 
     client = RegClient(srvrhost, srvrport)
-    client.RegApprove(authcode)
+    client.approve(authcode)
     print 'Approve authcode(%d)=%s successfully' % (request_id, authcode)
 
     client = RegClient(srvrhost, srvrport)
@@ -124,15 +115,16 @@ def ones():
         request_id, logname, alias, authcode, status = row
         try:
             client = RegClient(srvrhost, srvrport)
-            client.SendMail(request_id, logname, alias, authcode)
-        except RegClientProto as e:
-           _log.error("SendMail is unsuccessfull: %s" % e.message)
-           continue
+            client.sendmail(request_id, logname, alias, authcode)
+        except RegProtoError as e:
+            _log.error("SendMail is unsuccessfull: %s" % e.message)
+            continue
 
     print datetime.datetime.now()
     client = RegClient(srvrhost, srvrport)
-    print client.Garbage(60*60*24*1)
+    print client.garbage(60 * 60 * 24 * 1)
     print datetime.datetime.now()
+
 
 def manies():
     # fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
@@ -144,21 +136,18 @@ def manies():
 
     print "Main cicle started at ", datetime.datetime.now()
     for i in xrange(iterations):
-        if __debug__: print '\n<--- Started ---\n'
+        if __debug__:
+            print '\n<--- Started ---\n'
 
         fake = fakers[i % fakers_max]
         try:
             client = RegClient(srvrhost, srvrport)
-            request_id = client.SaveRequest(
+            request_id = client.save_request(
                 fake.email(),
                 fake.name(),
-                fake.password(length=10,
-                                   special_chars=True,
-                                   digits=True,
-                                   upper_case=True,
-                                   lower_case=True),
-            )
-            if __debug__: _log.debug('Request_id=%d' % request_id)
+                fake.password(length=10, special_chars=True, digits=True, upper_case=True, lower_case=True))
+            if __debug__:
+                _log.debug('Request_id=%d' % request_id)
         except RegProtoError as e:
             _log.error("SaveRequest is unsuccessfull: %s" % e.message)
             continue
@@ -166,26 +155,29 @@ def manies():
         try:
             client = RegClient(srvrhost, srvrport)
             authcode = client.get_authcode(request_id)
-            if __debug__: _log.debug('Authcode(%d)=%s' % (request_id, authcode))
+            if __debug__:
+                _log.debug('Authcode(%d)=%s' % (request_id, authcode))
         except RegProtoError as e:
             _log.error("GetAuthcode is unsuccessfull: %s" % e.message)
             continue
 
         try:
             client = RegClient(srvrhost, srvrport)
-            client.RegApprove(authcode)
-            if __debug__: _log.debug('Approve authcode(%d)=%s successfully' % (request_id, authcode))
+            client.approve(authcode)
+            if __debug__:
+                _log.debug('Approve authcode(%d)=%s successfully' % (request_id, authcode))
         except RegProtoError as e:
             _log.error("RegApprove is unsuccessfull: %s" % e.message)
             continue
 
-        if __debug__: print '\n--- Finished --->\n'
+        if __debug__:
+            print '\n--- Finished --->\n'
         # raw_input('Press any key to continue...')
     print "Main cicle finished at ", datetime.datetime.now()
 
     print datetime.datetime.now()
     client = RegClient(srvrhost, srvrport)
-    print client.Garbage(60*60*24*1)
+    print client.garbage(60 * 60 * 24 * 1)
     print datetime.datetime.now()
 
 print "Started for server %s:%s" % (srvrhost, srvrport)
@@ -195,5 +187,4 @@ print "Logging level:", loglevel
 # ones()
 manies()
 
-_log.debug("Finished.")
-sys.exit(0)
+_log.info("Finished.")
