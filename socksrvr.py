@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import sys
+#import sys
 # from time import sleep
 import SocketServer
 # Import my modules
@@ -9,7 +9,7 @@ from config import Config
 
 cfg = Config(
         [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.conf'}),
-         (('', '--pghost'), {'action': 'store', 'type':'string', 'dest':'pghost'}),
+         (('', '--pghost'), {'action': 'store', 'type': 'string', 'dest': 'pghost'}),
          (('', '--pgdb'), {'action': 'store', 'type': 'string', 'dest': 'pgdb'}),
          (('', '--pguser'), {'action': 'store', 'type': 'string', 'dest': 'pguser'}),
          (('', '--pgpasswd'), {'action': 'store', 'type': 'string', 'dest': 'pgpasswd'}),
