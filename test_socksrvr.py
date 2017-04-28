@@ -67,7 +67,7 @@ from regclntproto import RegClientProto, Error as RegProtoError
 
 class RegClient(RegClientProto):
     def get_authcode(self, request_id):
-        data = self.Gather(
+        data = self.gather(
             fields=[('authcode', None),
                     ('id', "=%d" % request_id)],
             limit=1,
@@ -80,7 +80,7 @@ class RegClient(RegClientProto):
         return data[0][0]   # нам нужно только первое поле
 
     def get_not_sent(self, cnt=None):
-        return self.Gather(
+        return self.gather(
             fields=[('id', None),
                     ('logname', None),
                     ('alias', None),
@@ -97,7 +97,7 @@ class RegClient(RegClientProto):
 def ones():
     client = RegClient(srvrhost, srvrport)
     fake = Factory.create("ru_RU")
-    request_id = client.SaveRequest(
+    request_id = client.save_request(
         fake.email(),
         fake.name(),
         fake.password(length=10,
@@ -113,7 +113,7 @@ def ones():
     print 'Authcode(%d)=%s' % (request_id, authcode)
 
     client = RegClient(srvrhost, srvrport)
-    client.RegApprove(authcode)
+    client.approve(authcode)
     print 'Approve authcode(%d)=%s successfully' % (request_id, authcode)
 
     client = RegClient(srvrhost, srvrport)
@@ -124,14 +124,14 @@ def ones():
         request_id, logname, alias, authcode, status = row
         try:
             client = RegClient(srvrhost, srvrport)
-            client.SendMail(request_id, logname, alias, authcode)
+            client.sendmail(request_id, logname, alias, authcode)
         except RegClientProto as e:
            _log.error("SendMail is unsuccessfull: %s" % e.message)
            continue
 
     print datetime.datetime.now()
     client = RegClient(srvrhost, srvrport)
-    print client.Garbage(60*60*24*1)
+    print client.garbage(60 * 60 * 24 * 1)
     print datetime.datetime.now()
 
 def manies():
@@ -149,7 +149,7 @@ def manies():
         fake = fakers[i % fakers_max]
         try:
             client = RegClient(srvrhost, srvrport)
-            request_id = client.SaveRequest(
+            request_id = client.save_request(
                 fake.email(),
                 fake.name(),
                 fake.password(length=10,
@@ -173,7 +173,7 @@ def manies():
 
         try:
             client = RegClient(srvrhost, srvrport)
-            client.RegApprove(authcode)
+            client.approve(authcode)
             if __debug__: _log.debug('Approve authcode(%d)=%s successfully' % (request_id, authcode))
         except RegProtoError as e:
             _log.error("RegApprove is unsuccessfull: %s" % e.message)
@@ -185,7 +185,7 @@ def manies():
 
     print datetime.datetime.now()
     client = RegClient(srvrhost, srvrport)
-    print client.Garbage(60*60*24*1)
+    print client.garbage(60 * 60 * 24 * 1)
     print datetime.datetime.now()
 
 print "Started for server %s:%s" % (srvrhost, srvrport)

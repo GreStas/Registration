@@ -189,10 +189,10 @@ class DBworker(object):
             self._log.debug("return %s" % str(rows))
         return rows
 
-    def fetch_one(self):
+    def fetchone(self):
         return self._fetch_rows(1)
 
-    def fetch_many(self, count):
+    def fetchmany(self, count):
         return self._fetch_rows(count)
 
     def fetchall(self):
@@ -322,8 +322,7 @@ class DBworkerPrc(multiprocessing.Process):
         try:
             self._curr.execute(sql)
         except psycopg2.Error as e:
-            if __debug__:
-                self._log.error("pgError in '%s':" % sql)
+            self._log.error("pgError in '%s':" % sql)
             raise SQLexecError(e.pgcode, e.pgerror, e.message, "execSimpleSQL")
 
     def exec_gather_sql(self, sql):
@@ -363,7 +362,6 @@ class DBworkerPrc(multiprocessing.Process):
             pass
 
     def run(self):
-        """ dbworkerprc.run():void """
         if __debug__:
             self._log.debug("Running...")
         while self._working:
@@ -418,13 +416,11 @@ class DBworkerPrc(multiprocessing.Process):
 
                 except SQLexecError as e:
                     self.error = {"errno": e.errno, "errspec": e.errspec, "errmsg": e.errmsg, "remark": e.remark}
-                    if __debug__:
-                        self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
+                    self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
                 except Error:
                     # по любой непонятной ошибке - завершаем работу цикла
                     self.error = {"errno": e.errno, "errspec": e.errspec, "errmsg": e.errmsg, "remark": e.remark, }
-                    if __debug__:
-                        self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
+                    self._log.error("[%s]: has got error '%s'" % (cmnd, str(self.error)))
                     self._working = False
                     continue
                 except EOFError as e:
@@ -576,8 +572,7 @@ class DBpool(object):
                 errmsg = "[%d] error:%s" % (self.prccount, e.message)
                 # Удалить служебные объекты и выйти
                 self._jobs[self.prccount] = "empty"
-                if __debug__:
-                    self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
+                self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
                 raise RuntimeError(errmsg)
             if __debug__:
                 self._log.debug("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
@@ -594,8 +589,7 @@ class DBpool(object):
                 # Удалить процесс, служебные объекты и выйти
                 self._processes[self.prccount].close()
                 self._jobs[self.prccount] = "empty"
-                if __debug__:
-                    self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
+                self._log.error("[%d]: status set to %s" % (self.prccount, self._jobs[self.prccount]))
                 raise RuntimeError(errmsg)
             if __debug__:
                 self._log.debug("[%d]: status is set to %s" % (self.prccount, self._jobs[self.prccount]))

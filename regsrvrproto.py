@@ -22,11 +22,11 @@ class RegServerProto(object):
         self._proto = appproto.AppProto(sock)
         self._reg_worker = reg_worker
         header = self._proto.recv_head()
-        switch_mesg = {MESG_SAVEREQUEST: self.SaveRequest,
-                       MESG_REGAPPROVE: self.RegApprove,
-                       MESG_SENDMAIL: self.SendMail,
-                       MESG_GARBAGE: self.Garbage,
-                       MESG_GATHER: self.Gather, }
+        switch_mesg = {MESG_SAVEREQUEST: self.save_request,
+                       MESG_REGAPPROVE: self.approve,
+                       MESG_SENDMAIL: self.sendmail,
+                       MESG_GARBAGE: self.garbage,
+                       MESG_GATHER: self.gather, }
         try:
             if not header:
                 raise Error("Header is empty")
@@ -42,8 +42,8 @@ class RegServerProto(object):
             _log.error("Server's got Invalid header: %s" % e.message)
             self._proto.send_head(HEAD_ERRR, MESG_COMMON, "Invalid header: %s" % e.message)
 
-    def Garbage(self, header):
-        result = self._reg_worker.Garbage(
+    def garbage(self, header):
+        result = self._reg_worker.garbage(
             timealive=header['data']['timealive'],
         )
         if result == 0:
@@ -51,8 +51,8 @@ class RegServerProto(object):
         else:
             self._proto.send_head(HEAD_ERRR, MESG_GARBAGE, self._reg_worker.ErrMsgs[result])
 
-    def RegApprove(self, header):
-        result = self._reg_worker.RegApprove(
+    def approve(self, header):
+        result = self._reg_worker.approve(
             authcode=header['data']['authcode'],
         )
         if result == 0:
@@ -60,8 +60,8 @@ class RegServerProto(object):
         else:
             self._proto.send_head(HEAD_ERRR, MESG_REGAPPROVE, self._reg_worker.ErrMsgs[result])
 
-    def SendMail(self, header):
-        result = self._reg_worker.SendMail(
+    def sendmail(self, header):
+        result = self._reg_worker.sendmail(
             request_id=header['data']['request_id'],
             logname=header['data']['logname'],
             alias=header['data']['alias'],
@@ -72,24 +72,24 @@ class RegServerProto(object):
         else:
             self._proto.send_head(HEAD_ERRR, MESG_SENDMAIL, self._reg_worker.ErrMsgs[result])
 
-    def Gather(self, header):
-        if __debug__: _log.debug("2 recv_head")
-        rows = self._reg_worker.Gather(fields=header['data']['fields'], limit=header['data']['limit'])
+    def gather(self, header):
+        # if __debug__: _log.debug("2 recv_head")
+        rows = self._reg_worker.gather(fields=header['data']['fields'], limit=header['data']['limit'])
         if rows is None:
-            if __debug__: _log.debug("3 send_head")
+            # if __debug__: _log.debug("3 send_head")
             self._proto.send_head(HEAD_ANSW, MESG_GATHER, None)
         else:
             json_data = json.dumps(rows)
-            if __debug__: _log.debug("3 send_head")
+            # if __debug__: _log.debug("3 send_head")
             self._proto.send_head(HEAD_ANSW, MESG_GATHER, len(json_data))
-            if __debug__: _log.debug("6 recv_head")
+            # if __debug__: _log.debug("6 recv_head")
             answer = self._proto.recv_head()
             if answer['data']:
-                if __debug__: _log.debug("7 send_rawdata")
+                # if __debug__: _log.debug("7 send_rawdata")
                 self._proto.send_rawdata(json_data)
 
-    def SaveRequest(self, header):
-        result = self._reg_worker.SaveRequest(
+    def save_request(self, header):
+        result = self._reg_worker.save_request(
             logname=header['data']['logname'],
             alias=header['data']['alias'],
             passwd=header['data']['passwd'],

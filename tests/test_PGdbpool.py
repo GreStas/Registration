@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
         print "main: Test execGatherSQL.fetchone()"
         conn5.exec_gather_sql(test_sql)
-        rows = conn5.fetch_one()
+        rows = conn5.fetchone()
         for row in rows: print "main fetched: ", row
 
         # print "main: Test execGatherSQL.fetchmany(20)"
