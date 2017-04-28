@@ -37,18 +37,14 @@ class Config(object):
         # получаем параметры из опций коммандной строки
         for args_, kwargs_ in options:
             self._opts.add_option(*args_, **kwargs_)
-
         self._params, self.args = self._opts.parse_args()
-        print 'vars(params):'
-        for var in vars(self._params):
-            print var, vars(self._params)[var]
 
     def load_conf(self, filename):
         """"Загрузка опций из INI-файла"""
         self._conf = ConfigParser.ConfigParser()
         self._conf.read(filename)
 
-    def get(self, name, prefer_opt=None, section=None):
+    def get(self, name, section=None, prefer_opt=None, default=None):
         """ Вычисляет значение параметра name
         :param name:
         :param prefer_opt:
@@ -74,4 +70,5 @@ class Config(object):
             result1, result2 = opt_, cfg_
         else:
             result1, result2 = cfg_, opt_
-        return result2 if result1 is None else result1
+        result = result2 if result1 is None else result1
+        return default if result is None else result

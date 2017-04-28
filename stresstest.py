@@ -17,9 +17,11 @@ import datetime
 # Import 3rd-parties modules
 try:
     from faker import Factory
+    from faker.config import AVAILABLE_LOCALES
 except ImportError, info:
     print "Import Error:", info
     sys.exit()
+
 
 # Import my modules
 try:

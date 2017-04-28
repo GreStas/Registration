@@ -18,20 +18,36 @@ from faker.config import AVAILABLE_LOCALES
 import logging
 
 from config import Config
+
+
 cfg = Config(
-    [
-        {'name': 'loglevel', 'default': 'DEBUG', 'section': 'DEBUG', },
-        {'name': 'logfile', 'default': 'socksrvr.log', 'section': 'DEBUG', },
-        {'name': 'srvrhost', 'section': 'REGCLIENT', },
-        {'name': 'srvrport', 'section': 'REGCLIENT', },
-    ],
-    filename="stresstest.conf",
-)
-loglevel = cfg.options['loglevel']
-logfile = cfg.options['logfile']
-srvrhost    = cfg.options['srvrhost']
-srvrport    = int(cfg.options['srvrport'])
+        [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.conf'}),
+         (('', '--loglevel'), {'action': 'store', 'type': 'string', 'dest': 'loglevel'}),
+         (('', '--logfile'), {'action': 'store', 'type': 'string', 'dest': 'logfile'}),
+         (('', '--srvrhost'), {'action': 'store', 'type': 'string', 'dest': 'srvrhost'}),
+         (('', '--srvrport'), {'action': 'store', 'type': 'string', 'dest': 'srvrport'}),
+         (("-i", "--iters"), {'action': 'store', 'type': 'string', 'dest': "iterations", 'default':'1'}),
+         # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default':''}),
+         ],
+        prefer_opt=True,
+        version='0.0.0.1',
+    )
+inifile = cfg.get('inifile')
+print "INI-file:", inifile
+if inifile is not None:
+    cfg.load_conf(inifile)
+
+loglevel    = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
+logfile     = cfg.get('logfile', section='DEBUG', default='stresstest.log')
+srvrhost    = cfg.get('srvrhost', 'REGCLIENT', default='localhost')
+srvrport    = int(cfg.get('srvrport', 'REGCLIENT', default='9090'))
+iterations  = int(cfg.get('iterations'))
 del cfg
+
+print "Started for: %s:%s" % (srvrhost, srvrport)
+print "Logfile:", logfile
+print "Logging level:", loglevel
+print "Iterations:", iterations
 
 logging_level = {'DEBUG': logging.DEBUG,
                  'INFO': logging.INFO,
@@ -127,7 +143,7 @@ def manies():
     fakers_max = len(fakers) - 1
 
     print "Main cicle started at ", datetime.datetime.now()
-    for i in xrange(10000):
+    for i in xrange(iterations):
         if __debug__: print '\n<--- Started ---\n'
 
         fake = fakers[i % fakers_max]
