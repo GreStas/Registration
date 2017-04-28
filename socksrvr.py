@@ -8,37 +8,43 @@ import SocketServer
 from config import Config
 
 cfg = Config(
-    [
-        {'name': 'pghost', 'section': 'POSTGRESQL', },
-        {'name': 'pgdb', 'section': 'POSTGRESQL', },
-        {'name': 'pguser', 'section': 'POSTGRESQL', },
-        {'name': 'pgpasswd', 'section': 'POSTGRESQL', },
-        {'name': 'pgrole', 'section': 'POSTGRESQL', },
-        {'name': 'pgschema', 'section': 'POSTGRESQL', },
-        {'name': 'loglevel', 'section': 'DEBUG', },
-        {'name': 'logfile', 'default': 'socksrvr.log', 'section': 'DEBUG', },
-        {'name': 'srvrhost', 'section': 'SOCKSRVR', },
-        {'name': 'srvrport', 'section': 'SOCKSRVR', },
-        # {'name': 'loglevel', 'default': 'DEBUG', 'section': 'DEBUG', },
-        # {'name': 'duration', 'section': 'DEFAULT', },
-        # {'name': 'freq', 'section': 'DEFAULT', },
-        # {'name': 'pcterr', 'section': 'DEFAULT', },
-    ],
-    filename="stresstest.conf",
-)
+        [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.conf'}),
+         (('', '--pghost'), {'action': 'store', 'type':'string', 'dest':'pghost'}),
+         (('', '--pgdb'), {'action': 'store', 'type': 'string', 'dest': 'pgdb'}),
+         (('', '--pguser'), {'action': 'store', 'type': 'string', 'dest': 'pguser'}),
+         (('', '--pgpasswd'), {'action': 'store', 'type': 'string', 'dest': 'pgpasswd'}),
+         (('', '--pgschema'), {'action': 'store', 'type': 'string', 'dest': 'pgschema'}),
+         (('', '--loglevel'), {'action': 'store', 'type': 'string', 'dest': 'loglevel'}),
+         (('', '--logfile'), {'action': 'store', 'type': 'string', 'dest': 'logfile'}),
+         (('', '--srvrhost'), {'action': 'store', 'type': 'string', 'dest': 'srvrhost'}),
+         (('', '--srvrport'), {'action': 'store', 'type': 'string', 'dest': 'srvrport'}),
+         # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default':''}),
+         ],
+        prefer_opt=True,
+        version='0.0.0.1',
+    )
+inifile = cfg.get('inifile')
+print "INI-file:", inifile
+if inifile is not None:
+    cfg.load_conf(inifile)
+
 defconnection = {}
-defconnection["pg_hostname"]    = cfg.options['pghost']
-defconnection["pg_database"]    = cfg.options['pgdb']
-defconnection["pg_user"]        = cfg.options['pguser']
-defconnection["pg_passwd"]      = cfg.options['pgpasswd']
-defconnection["pg_role"]        = cfg.options['pgrole']
-defconnection["pg_schema"]      = cfg.options['pgschema']
-loglevel    = cfg.options['loglevel']
-logfile     = cfg.options['logfile']
-srvrhost    = cfg.options['srvrhost']
-srvrport    = int(cfg.options['srvrport'])
+defconnection["pg_hostname"]    = cfg.get('pghost', 'POSTGRESQL', default='localhost')
+defconnection["pg_database"]    = cfg.get('pgdb', 'POSTGRESQL')
+defconnection["pg_user"]        = cfg.get('pguser', 'POSTGRESQL')
+defconnection["pg_passwd"]      = cfg.get('pgpasswd', 'POSTGRESQL')
+defconnection["pg_role"]        = cfg.get('pgrole', 'POSTGRESQL')
+defconnection["pg_schema"]      = cfg.get('pgschema', 'POSTGRESQL')
+loglevel    = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
+logfile     = cfg.get('logfile', section='DEBUG', default='socksrvr.log')
+srvrhost    = cfg.get('srvrhost', 'SOCKSRVR', default='localhost')
+srvrport    = int(cfg.get('srvrport', 'SOCKSRVR', default='9090'))
 del cfg
 
+print "Started for:", defconnection
+print "on %s:%s" % (srvrhost, srvrport)
+print "Logfile:", logfile
+print "Logging level:", loglevel
 
 import logging
 logging_level = {
@@ -59,11 +65,11 @@ from Registration import getRegWorker
 from regsrvrproto import RegServerProto, Error as RegProtoError
 
 
+regworker = getRegWorker(defconnection, 1, 16)
+
+
 class Error(RuntimeError):
     pass
-
-
-regworker = getRegWorker(defconnection, 1, 16)
 
 
 class RegHandler(SocketServer.StreamRequestHandler):
@@ -80,10 +86,6 @@ class RegHandler(SocketServer.StreamRequestHandler):
 class RegServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
 
-
-print "Started for:", defconnection
-print "Logfile:", logfile
-print "Logging level:", loglevel
 
 _log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
 srvr = RegServer((srvrhost, srvrport), RegHandler)
