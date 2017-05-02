@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-#   Module : PGdbworker.py
+#   Module : PGdbpool.py
 #
 import multiprocessing
 import psycopg2
