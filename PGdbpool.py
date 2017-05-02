@@ -638,7 +638,8 @@ class DBpool(object):
                         iprc += 1
                         if iprc >= self.prccount:
                             iprc = 0
-                            raise RuntimeError("DBpool.connect: free connection is not exist")
+                            _log.error("DBpool.connect: free connection is not exist")
+                            raise OperationalError("DBpool.connect: free connection is not exist")
                     # Заняли найденный процесс
                     self._jobs[iprc] = "busy"
                 else:

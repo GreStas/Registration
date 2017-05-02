@@ -17,7 +17,7 @@ cfg = Config(
          (('', '--logfile'), {'action': 'store', 'type': 'string', 'dest': 'logfile'}),
          (('', '--srvrhost'), {'action': 'store', 'type': 'string', 'dest': 'srvrhost'}),
          (('', '--srvrport'), {'action': 'store', 'type': 'string', 'dest': 'srvrport'}),
-         (("-i", "--iters"), {'action': 'store', 'type': 'string', 'dest': "iterations", 'default': '1'}),
+         (("-i", "--iters"), {'action': 'store', 'type': 'string', 'dest': "iterations"}),
          # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default': ''}),
          ],
         prefer_opt=True,
@@ -32,7 +32,7 @@ loglevel    = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
 logfile     = cfg.get('logfile', section='DEBUG', default='stresstest.log')
 srvrhost    = cfg.get('srvrhost', 'REGCLIENT', default='localhost')
 srvrport    = int(cfg.get('srvrport', 'REGCLIENT', default='9090'))
-iterations  = int(cfg.get('iterations'))
+iterations  = int(cfg.get('iterations', default='1'))
 del cfg
 
 print "Started for: %s:%s" % (srvrhost, srvrport)
@@ -127,17 +127,17 @@ def ones():
 
 
 def manies():
-    # fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
     # fakers = []
     # fakers.append(Factory.create("en_US"))
     # fakers.append(Factory.create("ru_RU"))
-    fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES if lcl[0:2] in ('en', 'ru', 'uk')]
+    fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
+    # fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES if lcl[0:2] in ('en', 'ru', 'uk')]
     fakers_max = len(fakers) - 1
 
     print "Main cicle started at ", datetime.datetime.now()
     for i in xrange(iterations):
-        if __debug__:
-            print '\n<--- Started ---\n'
+        # if __debug__:
+        #     print '\n<--- Started ---\n'
 
         fake = fakers[i % fakers_max]
         try:
@@ -170,8 +170,8 @@ def manies():
             _log.error("RegApprove is unsuccessfull: %s" % e.message)
             continue
 
-        if __debug__:
-            print '\n--- Finished --->\n'
+        # if __debug__:
+        #     print '\n--- Finished --->\n'
         # raw_input('Press any key to continue...')
     print "Main cicle finished at ", datetime.datetime.now()
 
@@ -184,7 +184,10 @@ print "Started for server %s:%s" % (srvrhost, srvrport)
 print "Logfile:", logfile
 print "Logging level:", loglevel
 
-# ones()
-manies()
-
+if iterations > 1:
+    manies()
+elif iterations == 1:
+    ones()
+else:
+    print "Incorrect iteration count:", iterations
 _log.info("Finished.")

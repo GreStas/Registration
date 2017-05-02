@@ -42,7 +42,6 @@ print "Started for: %s:%s" % (srvrhost, srvrport)
 print "Logfile:", logfile
 print "Logging level:", loglevel
 print "Iterations:", iterations
-print "maxqueue:", maxqueue
 
 logging_level = {'DEBUG': logging.DEBUG,
                  'INFO': logging.INFO,
@@ -53,7 +52,7 @@ logging.basicConfig(
     format="%(asctime)s pid[%(process)d].%(name)s.%(funcName)s(%(lineno)d):%(levelname)s:%(message)s",
     level=logging_level.get(loglevel, logging.NOTSET)
 )
-_log = logging.getLogger("StressThreads")
+_log = logging.getLogger("TestSockSrvr")
 _log.info("Started")
 
 
@@ -84,70 +83,41 @@ class RegClient(RegClientProto):
             limit=cnt
         )
 
+def gen_request(fake):
+    logname = fake.email()
+    alias = fake.name()
+    passwd = fake.password(length=10, special_chars=True, digits=True, upper_case=True, lower_case=True)
+    with cmnds_lock:
+        cmnds.append((save_request, (logname, alias, passwd), {}))
 
-class Stress(threading.Thread):
-
-    prc_counts = 0
-    lock = threading.Lock()
-
-    @staticmethod
-    def prc_inc():
-        with Stress.lock:
-            Stress.prc_counts += 1
-
-    @staticmethod
-    def prc_dec():
-        with Stress.lock:
-            Stress.prc_counts -= 1
-
-    def __init__(self, fake):
-        threading.Thread.__init__(self)
-        self.daemon = False
-        self.fake = fake
-
-    def run(self):
-        if __debug__: _log.debug("(%d)Started thread, counter=%d." % (self.ident, Stress.prc_counts))
-        Stress.prc_inc()
-        try:
-            client = RegClient(srvrhost, srvrport)
-            logname = self.fake.email()
-            alias = self.fake.name()
-            passwd = self.fake.password(length=10, special_chars=True, digits=True, upper_case=True, lower_case=True)
-            if __debug__:
-                _log.debug("(%d)Call SaveRequest(%s,%s)" % (self.ident, logname, alias))
-            request_id = client.save_request(
-                logname,
-                alias,
-                passwd,
-            )
-            if __debug__:
-                _log.debug('(%d)Request_id=%d' % (self.ident, request_id))
-        except RegProtoError as e:
-            _log.error("(%d)SaveRequest is unsuccessfull: %s" % (self.ident, e.message))
-            Stress.prc_dec()
-            return
-        try:
-            client = RegClient(srvrhost, srvrport)
-            authcode = client.get_authcode(request_id)
-            if __debug__:
-                _log.debug('(%d)Authcode(%d)=%s' % (self.ident, request_id, authcode))
-        except RegProtoError as e:
-            _log.error("(%d)GetAuthcode is unsuccessfull: %s" % (self.ident, e.message))
-            Stress.prc_dec()
-            return
-        try:
-            client = RegClient(srvrhost, srvrport)
-            client.approve(authcode)
-            if __debug__:
-                _log.debug('(%d)Approve authcode(%d)=%s successfully' % (self.ident, request_id, authcode))
-        except RegProtoError as e:
-            _log.error("(%d)RegApprove is unsuccessfull: %s" % (self.ident, e.message))
-            Stress.prc_dec()
-            return
-        Stress.prc_dec()
+def save_request(*args, **kwargs):
+    try:
+        client = RegClient(srvrhost, srvrport)
+        request_id = client.save_request(*args, **kwargs)
         if __debug__:
-            _log.debug("(%d)Finished thread, counter=%d." % (self.ident, Stress.prc_counts))
-        return
+            _log.debug('Request_id=%d' % request_id)
+        with cmnds_lock:
+            cmnds.append((get_authcode, (request_id), {}))
+    except RegProtoError as e:
+        _log.error("SaveRequest is unsuccessfull: %s" % e.message)
+
+def get_authcode(request_id):
+    try:
+        client = RegClient(srvrhost, srvrport)
+        authcode = client.get_authcode(request_id)
+        if __debug__:
+            _log.debug('Authcode(%d)=%s' % (request_id, authcode))
+    except RegProtoError as e:
+        _log.error("GetAuthcode is unsuccessfull: %s" % e.message)
+
+    try:
+        client = RegClient(srvrhost, srvrport)
+        with cmnds_lock:
+            cmnds.append((get_authcode, (request_id), {}))
+    except RegProtoError as e:
+
+def approve(authcode):
+    pass
 
 print "Started for server %s:%s" % (srvrhost, srvrport)
 print "Logfile:", logfile
@@ -155,18 +125,16 @@ print "Logging level:", loglevel
 
 fakers = [Factory.create(lcl) for lcl in AVAILABLE_LOCALES]
 fakers_max = len(fakers) - 1
-prc_count = 0
+cmnds = []
+cmnds_lock = threading.Lock()
 
 print "Main cicle started at ", datetime.datetime.now()
 for i in xrange(iterations):
-    if Stress.prc_counts >= maxqueue:
+    if len(cmnds) >= maxqueue:
         sleep(1)
-    t = Stress(fakers[i % fakers_max])
-    t.start()
+    fake = fakers[i % fakers_max]
+    with cmnds_lock:
+        cmnds.append((gen_request, (fake), {}))
 print "Main cicle finished at ", datetime.datetime.now()
-while Stress.prc_counts > 0:
-    print Stress.prc_counts
-    sleep(1)
-print "Waiting finished at ", datetime.datetime.now()
 
 _log.info("Finished.")

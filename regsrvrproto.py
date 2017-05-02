@@ -89,11 +89,16 @@ class RegServerProto(object):
                 self._proto.send_rawdata(json_data)
 
     def save_request(self, header):
+        if __debug__:
+            _log.debug("Call _reg_worker('%s','%s')" % (header['data']['logname'], header['data']['alias']))
         result = self._reg_worker.save_request(
             logname=header['data']['logname'],
             alias=header['data']['alias'],
             passwd=header['data']['passwd'],
         )
+        if __debug__:
+            _log.debug("_reg_worker('%s','%s') returned %s"
+                       % (header['data']['logname'], header['data']['alias'], str(result)))
         if result > 0:
             self._proto.send_head(HEAD_ANSW, MESG_SAVEREQUEST, result)
         else:

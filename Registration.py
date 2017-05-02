@@ -95,7 +95,7 @@ class RegWorker(object):
 
     @staticmethod
     def _request_hash(request_id, logname, alias, passwd):
-        stri = str(request_id) + logname + ascii(alias) + passwd + str(timestamp.utcnow())
+        stri = str(request_id) + ascii(logname) + ascii(alias) + passwd + str(timestamp.utcnow())
         return hashlib.md5(stri).hexdigest()
 
     def close_dbpool(self):
@@ -386,6 +386,10 @@ class RegWorker(object):
         # Получаем коннект к БД и делаем выборку
         try:
             dbconn = self._dbpool.connect()
+        except Error as e:
+            self._log.error(str(e))
+            return None
+        try:
             dbconn.exec_gather_sql(sql)
             rows = dbconn.fetchall()
         except Error as e:

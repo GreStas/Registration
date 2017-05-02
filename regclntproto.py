@@ -10,7 +10,7 @@ import appproto
 # под именем AppProto должен быть класс, реализующий обмен через сокет
 
 
-_log = logging.getLogger("RegSrvrProto")
+_log = logging.getLogger("RegClntProto")
 _log.info("Started")
 
 
@@ -25,6 +25,8 @@ class RegClientProto(object):
         self._proto = appproto.AppProto(self._sock)
 
     def save_request(self, logname, alias, passwd):
+        if __debug__:
+            _log.debug("(logname, alias) = ('%s', '%s')" % (logname, alias))
         self._proto.send_head(HEAD_CMND,
                               MESG_SAVEREQUEST,
                               {'logname': logname,
@@ -32,12 +34,15 @@ class RegClientProto(object):
                                'passwd': passwd})
         header = self._proto.recv_head()
         if not header:
-            raise Error("SaveRequest don't return anything")
+            _log.error("Server didn't return anything for (logname, alias) = ('%s', '%s')" % (logname, alias))
+            raise Error("Server did't return anything")
         elif header['head'] == HEAD_ANSW:
             return header['data']
         elif header['head'] == HEAD_ERRR:
+            _log.error("Server returned error: %s" % header['data'])
             raise Error(header['data'])
         else:
+            _log.error("Server returned bad header %s" % header['data'])
             raise Error("Invalid header")
 
     def gather(self, fields, limit=1):

@@ -8,7 +8,7 @@ import SocketServer
 from config import Config
 
 cfg = Config(
-        [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.conf'}),
+        [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.ini'}),
          (('', '--pghost'), {'action': 'store', 'type': 'string', 'dest': 'pghost'}),
          (('', '--pgdb'), {'action': 'store', 'type': 'string', 'dest': 'pgdb'}),
          (('', '--pguser'), {'action': 'store', 'type': 'string', 'dest': 'pguser'}),
@@ -18,6 +18,8 @@ cfg = Config(
          (('', '--logfile'), {'action': 'store', 'type': 'string', 'dest': 'logfile'}),
          (('', '--srvrhost'), {'action': 'store', 'type': 'string', 'dest': 'srvrhost'}),
          (('', '--srvrport'), {'action': 'store', 'type': 'string', 'dest': 'srvrport'}),
+         (("", "--dbpoolmin"), {'action': 'store', 'type': 'string', 'dest': "dbpoolmin"}),
+         (("", "--dbpoolmax"), {'action': 'store', 'type': 'string', 'dest': "dbpoolmax"}),
          # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default':''}),
          ],
         prefer_opt=True,
@@ -36,13 +38,16 @@ defconnection["pg_passwd"]      = cfg.get('pgpasswd', 'POSTGRESQL')
 defconnection["pg_role"]        = cfg.get('pgrole', 'POSTGRESQL')
 defconnection["pg_schema"]      = cfg.get('pgschema', 'POSTGRESQL')
 loglevel    = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
-logfile     = cfg.get('logfile', section='DEBUG', default='socksrvr.log')
+logfile     = cfg.get('logfile', section='DEBUG', default='logs/socksrvr.log')
 srvrhost    = cfg.get('srvrhost', 'SOCKSRVR', default='localhost')
 srvrport    = int(cfg.get('srvrport', 'SOCKSRVR', default='9090'))
+dbpoolmin   = int(cfg.get('dbpoolmin', 'SOCKSRVR', default='1'))
+dbpoolmax   = int(cfg.get('dbpoolmax', 'SOCKSRVR', default='16'))
 del cfg
 
 print "Started for:", defconnection
 print "on %s:%s" % (srvrhost, srvrport)
+print "DBpoolMin,DBpoolMax = %d,%d" % (dbpoolmin,dbpoolmax)
 print "Logfile:", logfile
 print "Logging level:", loglevel
 
@@ -65,7 +70,7 @@ from Registration import getRegWorker
 from regsrvrproto import RegServerProto, Error as RegProtoError
 
 
-regworker = getRegWorker(defconnection, 1, 16)
+regworker = getRegWorker(defconnection, dbpoolmin, dbpoolmax)
 
 
 class Error(RuntimeError):
@@ -73,7 +78,6 @@ class Error(RuntimeError):
 
 
 class RegHandler(SocketServer.StreamRequestHandler):
-
     def handle(self):
         try:
             RegServerProto(regworker, self.request)
@@ -85,6 +89,7 @@ class RegHandler(SocketServer.StreamRequestHandler):
 
 class RegServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
+    # request_queue_size = 5
 
 
 _log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
