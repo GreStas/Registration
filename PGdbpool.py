@@ -450,6 +450,13 @@ class DBpool(object):
     - метод disconnect удаляет экземпляр прокси-объекта dbworker
     """
     def __init__(self, dbconn, minconn=None, maxconn=None):
+        """
+        Создать все вспомагательные прокси-объекты и запустить процессы
+
+        :param dbconn: Словарь с описанием параметров соединения с БД
+        :param minconn: Мин кол-во соединений в пуле
+        :param maxconn: Макс кол-во соединений в пуле
+        """
         self._log = logging.getLogger("DBpool[%s]" % self.__hash__())
         self._log.debug("Started")
         # Определить минимальное и максимальное количество процессов в пуле
