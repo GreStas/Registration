@@ -15,13 +15,13 @@ from future_builtins import ascii
 import datetime
 import hashlib
 import logging
+from pgdbpoll import PGDBPoll, SQLexecError
+from mpdbpoll import DataError, Error
 
 _log = logging.getLogger("Registration")
 _log.debug("Started")
 
 timestamp = datetime.datetime
-
-from PGdbpool import DBpool, Error, DataError, SQLexecError
 
 
 def getRegWorker(dbconn, minconn=None, maxconn=None):
@@ -33,8 +33,8 @@ def getRegWorker(dbconn, minconn=None, maxconn=None):
     """
     if __debug__:
         _log.debug("getRegWorker %d %d" % (minconn, maxconn))
-    dbpool = DBpool(dbconn, minconn, maxconn)
-    return RegWorker(dbpool)
+    dbpoll = PGDBPoll(dbconn, minconn, maxconn)
+    return RegWorker(dbpoll)
 
 
 class RegWorker(object):
