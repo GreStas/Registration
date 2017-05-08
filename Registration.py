@@ -15,13 +15,13 @@ from future_builtins import ascii
 import datetime
 import hashlib
 import logging
+from pgdbpoll import PGDBPoll, SQLexecError
+from mpdbpoll import DataError, Error
 
 _log = logging.getLogger("Registration")
 _log.debug("Started")
 
 timestamp = datetime.datetime
-
-from PGdbpool import DBpool, Error, DataError, SQLexecError
 
 
 def getRegWorker(dbconn, minconn=None, maxconn=None):
@@ -33,8 +33,8 @@ def getRegWorker(dbconn, minconn=None, maxconn=None):
     """
     if __debug__:
         _log.debug("getRegWorker %d %d" % (minconn, maxconn))
-    dbpool = DBpool(dbconn, minconn, maxconn)
-    return RegWorker(dbpool)
+    dbpoll = PGDBPoll(dbconn, minconn, maxconn)
+    return RegWorker(dbpoll)
 
 
 class RegWorker(object):
@@ -95,7 +95,7 @@ class RegWorker(object):
 
     @staticmethod
     def _request_hash(request_id, logname, alias, passwd):
-        stri = str(request_id) + logname + ascii(alias) + passwd + str(timestamp.utcnow())
+        stri = str(request_id) + ascii(logname) + ascii(alias) + passwd + str(timestamp.utcnow())
         return hashlib.md5(stri).hexdigest()
 
     def close_dbpool(self):
@@ -114,7 +114,7 @@ class RegWorker(object):
         except SQLexecError as e:
             if __debug__:
                 self._log.debug("errRegStatusToProgress: eSQLexec(%s) for '%s'" % (str(e)), stri)
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
             return RegWorker.get_errno("errRegStatusToProgress")
         # Сюда добавить реальный код отправки запроса авторизации по почте
         # authURI = web_domain + registration_path + "?a=" + authcode
@@ -125,7 +125,7 @@ class RegWorker(object):
         #     return -2 # Cannot send email
         self._log.info("Authcode %s is sent to %s for %s." % (authcode, logname, ascii(alias)))
         dbconn.commit()
-        self._dbpool.disconnect(dbconn.name)
+        self._dbpool.disconnect(dbconn)
         return 0
 
     def save_request(self, logname, alias, passwd):
@@ -266,7 +266,7 @@ class RegWorker(object):
                 self._log.error("Error[%d] %s"
                                 % (request_id, RegWorker.ErrMsgs[request_id]))
         finally:
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
         if request_id > 0:
             self.sendmail(request_id, logname, alias, authcode)
         return request_id
@@ -307,9 +307,9 @@ class RegWorker(object):
                 dbconn.commit()
             except SQLexecError as e:
                 self._log.error("errRegStatusToRejected: %s" % str(e))
-                self._dbpool.disconnect(dbconn.name)
+                self._dbpool.disconnect(dbconn)
                 return RegWorker.get_errno("errRegStatusToRejected")
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
             return RegWorker.get_errno("errRejected")
 
         # Помечаем обработанную строку в журнале регистраций
@@ -323,12 +323,12 @@ class RegWorker(object):
             if __debug__:
                 self._log.debug("Registering of authcode=%s is success." % authcode)
             dbconn.commit()
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
             return RegWorker.get_errno("errNone")
         except SQLexecError as e:
             self._log.error("errRegStatusToRegistered: %s" % str(e))
             dbconn.rollback()
-        self._dbpool.disconnect(dbconn.name)
+        self._dbpool.disconnect(dbconn)
         return RegWorker.get_errno("errRegStatusToRegistered")
 
     def garbage(self, timealive):
@@ -350,10 +350,10 @@ class RegWorker(object):
             dbconn.commit()
         except SQLexecError as e:
             self._log.error("eSQLexec %s" % str(e))
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
             return RegWorker.get_errno("errSQL")
         else:
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
         if __debug__:
             self._log.debug("Finished")
         return RegWorker.get_errno("errNone")
@@ -386,13 +386,17 @@ class RegWorker(object):
         # Получаем коннект к БД и делаем выборку
         try:
             dbconn = self._dbpool.connect()
+        except Error as e:
+            self._log.error(str(e))
+            return None
+        try:
             dbconn.exec_gather_sql(sql)
             rows = dbconn.fetchall()
         except Error as e:
             rows = None
             self._log.error(str(e))
         finally:
-            self._dbpool.disconnect(dbconn.name)
+            self._dbpool.disconnect(dbconn)
         if __debug__:
             _log.debug("return %d" % len(rows))
         return rows
