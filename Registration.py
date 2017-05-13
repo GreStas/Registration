@@ -15,8 +15,10 @@ from future_builtins import ascii
 import datetime
 import hashlib
 import logging
-from pgdbpoll import PGDBPoll, SQLexecError
-from mpdbpoll import DataError, Error
+# from mpdbpoll.pgdbpoll import PGDBPoll, SQLexecError
+# from mpdbpoll import DataError, Error
+from mtdbpoll.pgdbpoll import PGDBPoll, SQLexecError
+from mtdbpoll import DataError, Error
 
 _log = logging.getLogger("Registration")
 _log.debug("Started")
