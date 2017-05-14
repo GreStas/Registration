@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 #
-#   Package : mpdbpoll.dbworkerbase
+#   Package : dbpool.dbworkerbase
 #   File : dbworkerbase.py
 #
 
+import threading
 import multiprocessing
-from .common import *
+from common import *
 
 
 class FetchProperty(object):
@@ -27,7 +28,7 @@ class FetchProperty(object):
         raise AttributeError("Cannot delete attribute")
 
 
-class DBWorkerBase(multiprocessing.Process):
+class DBWorkerBase(object):
     def __init__(self, dbconn, p_name, p_lock, p_input, p_output, p_client_evt, p_server_evt, p_error):
         """
         BASE DBWorker class
@@ -40,9 +41,10 @@ class DBWorkerBase(multiprocessing.Process):
         :param p_server_evt: Event for Server process
         :param p_error: Dictionary {errno, errspec, errmsg, remark} for describing error
         """
-        self._log = set_logging("%s[%s][%s]" % (self.__class__.__name__, self.__hash__(), p_name))
-        # multiprocessing.Process.__init__(self)
         super(DBWorkerBase, self).__init__()
+        self._log = set_logging("%s[%s][%s]" % (self.__class__.__name__, self.__hash__(), p_name))
+        if __debug__:
+            self._log.debug("DBWorkerBase(multiprocessing.Process).__init__ Started")
         self._dbconn, self._curr = self.connect(dbconn)
         # Internal variables to control of process
         self._name = p_name
@@ -110,6 +112,8 @@ class DBWorkerBase(multiprocessing.Process):
 
         :return: void
         """
+        if __debug__:
+            self._log.debug("DBWorkerBase(multiprocessing.Process)._pass_control Started")
         # pause server side
         if self._server_evt.is_set():
             self._server_evt.clear()
@@ -139,6 +143,8 @@ class DBWorkerBase(multiprocessing.Process):
             self._server_evt.set()
 
     def run(self):
+        if __debug__:
+            self._log.debug("DBWorkerBase(multiprocessing.Process).run Started")
         while self._working:
             try:
                 self._server_evt.wait()   # Ждём новую команду от клиента
@@ -189,3 +195,11 @@ class DBWorkerBase(multiprocessing.Process):
                     self._pass_control()
         # финализация, если вышли из цикла не нормальным способом (continue или break)
         self._pass_control()
+
+
+class DBWorkerMP(DBWorkerBase, multiprocessing.Process):
+    pass
+
+
+class DBWorkerMT(DBWorkerBase, threading.Thread):
+    pass

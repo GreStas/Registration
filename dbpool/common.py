@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-#   Package : mpdbpoll.common
+#   Package : dbpool.common
 #   File : common.py
 #
 

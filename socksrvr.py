@@ -20,6 +20,7 @@ cfg = Config(
          (('', '--srvrport'), {'action': 'store', 'type': 'string', 'dest': 'srvrport'}),
          (("", "--dbpoolmin"), {'action': 'store', 'type': 'string', 'dest': "dbpoolmin"}),
          (("", "--dbpoolmax"), {'action': 'store', 'type': 'string', 'dest': "dbpoolmax"}),
+         (("", "--pooltype"), {'action': 'store', 'type': 'string', 'dest': "pooltype"}),
          # (("-", "--"), {'action': 'store', 'type': 'string', 'dest': "", 'default':''}),
          ],
         prefer_opt=True,
@@ -43,11 +44,12 @@ srvrhost    = cfg.get('srvrhost', 'SOCKSRVR', default='localhost')
 srvrport    = int(cfg.get('srvrport', 'SOCKSRVR', default='9090'))
 dbpoolmin   = int(cfg.get('dbpoolmin', 'SOCKSRVR', default='1'))
 dbpoolmax   = int(cfg.get('dbpoolmax', 'SOCKSRVR', default='16'))
+pooltype    = cfg.get('pooltype', section='SOCKSRVR', default='mt')
 del cfg
 
 print "Started for:", defconnection
 print "on %s:%s" % (srvrhost, srvrport)
-print "DBpoolMin,DBpoolMax = %d,%d" % (dbpoolmin,dbpoolmax)
+print "DBpool(Min,Max) = %s(%d,%d)" % (pooltype, dbpoolmin, dbpoolmax)
 print "Logfile:", logfile
 print "Logging level:", loglevel
 
@@ -70,7 +72,7 @@ from Registration import getRegWorker
 from regsrvrproto import RegServerProto, Error as RegProtoError
 
 
-regworker = getRegWorker(defconnection, dbpoolmin, dbpoolmax)
+regworker = getRegWorker(defconnection, dbpoolmin, dbpoolmax, pooltype)
 
 
 class Error(RuntimeError):

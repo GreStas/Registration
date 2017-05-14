@@ -15,10 +15,8 @@ from future_builtins import ascii
 import datetime
 import hashlib
 import logging
-# from mpdbpoll.pgdbpoll import PGDBPoll, SQLexecError
-# from mpdbpoll import DataError, Error
-from mtdbpoll.pgdbpoll import PGDBPoll, SQLexecError
-from mtdbpoll import DataError, Error
+from dbpool.pgdbpool import PGDBPoolMP, PGDBPoolMT, SQLexecError
+from dbpool import DataError, Error
 
 _log = logging.getLogger("Registration")
 _log.debug("Started")
@@ -26,17 +24,23 @@ _log.debug("Started")
 timestamp = datetime.datetime
 
 
-def getRegWorker(dbconn, minconn=None, maxconn=None):
+def getRegWorker(dbconn, minconn=None, maxconn=None, pooltype='mt'):
     """ Создаёт экземпляр класса RegWorker
     :param dbconn:
     :param minconn:
     :param maxconn:
+    :param pooltype: 'mt' - MultiThreading |'mp' - Multi-Processing
     :return: RegWorker()
     """
     if __debug__:
-        _log.debug("getRegWorker %d %d" % (minconn, maxconn))
-    dbpoll = PGDBPoll(dbconn, minconn, maxconn)
-    return RegWorker(dbpoll)
+        _log.debug("getRegWorker %d %d %s" % (minconn, maxconn, pooltype))
+    if pooltype == 'mt':
+        dbpool = PGDBPoolMT(dbconn, minconn, maxconn)
+    elif pooltype == 'mp':
+        dbpool = PGDBPoolMP(dbconn, minconn, maxconn)
+    else:
+        dbpool = None
+    return RegWorker(dbpool)
 
 
 class RegWorker(object):
