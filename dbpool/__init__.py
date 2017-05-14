@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 #
-#   Package : mpdbpoll
+#   Package : dbpool
 #   File : __init__.py
 #
 
+import threading
 import multiprocessing
 import Queue
-from .common import *
+from common import *
 
-_log = set_logging("mpdbpoll")
+_log = set_logging("dbpool")
 
 _HNDL_WORKER = 'worker'   # DBWorkerBase
 _HNDL_PROXY = 'proxy'     # DBProxyBase
@@ -31,8 +32,8 @@ _STS_STOPPING = 'stopping'
 _STS_STOPPED = 'stopped'
 
 
-class DBPollBase(object):
-    def __init__(self, dbconn, cls_proxy, cls_worker, minconn=None, maxconn=None):
+class DBPoolBase(object):
+    def __init__(self, dbconn, cls_manager, cls_proxy, cls_worker, minconn=None, maxconn=None):
         """
         Organize DataBase connection Pool by multiprocessing.Manager control
         :param dbconn: Dictionary for describing PGconnect and additional parameters
@@ -42,14 +43,16 @@ class DBPollBase(object):
         :param maxconn: max connections
         """
         self._log = set_logging("%s[%s]" % (self.__class__.__name__, self.__hash__()))
+        if __debug__:
+            self._log.debug('Started')
         self._dbconn = dbconn
+        self._manager = cls_manager()
         self._proxy = cls_proxy
         self._worker = cls_worker
-        self._manager = multiprocessing.Manager()
-        self._jobslock = multiprocessing.Lock()  # jobslock  для целостности _conns и _prccount
+        self._freelist = Queue.Queue()
+        self._jobslock = self._manager.get_lock()  # jobslock  для целостности _conns и _prccount
         self._handles = []    # состоит из словарей с объектами для связки между Proxy и Worker
         self._prccount = 0  # практически всегда это номер следующего создаваемого процесса, len(_cons)
-        self._freelist = multiprocessing.Queue()
         self._working = True
         # Определить минимальное и максимальное количество процессов в пуле
         cpucount = multiprocessing.cpu_count()
@@ -77,15 +80,22 @@ class DBPollBase(object):
         Добавление пар Proxy+Worker в _handles и в очередь свободных
         :return: boolean
         """
-        handle = {
-            'status': 'creating',
-            'lock': self._manager.Lock(),
-            'input': self._manager.Queue(),
-            'output': self._manager.Queue(),
-            'client': self._manager.Event(),
-            'server': self._manager.Event(),
-            'error': self._manager.dict(),
-        }
+        handle = {}
+        handle[_HNDL_LOCK] = self._manager.get_lock()
+        handle[_HNDL_INPUT] = self._manager.get_queue()
+        handle[_HNDL_OUTPUT] = self._manager.get_queue()
+        handle[_HNDL_CLNTEVT] = self._manager.get_event()
+        handle[_HNDL_SRVREVT] = self._manager.get_event()
+        handle[_HNDL_ERROR] = self._manager.get_dict()
+        # handle = {
+        #     'lock': self._manager.get_lock(),
+        #     'input': self._manager.get_queue(),
+        #     'output': self._manager.get_queue(),
+        #     'client': self._manager.get_event(),
+        #     'server': self._manager.get_event(),
+        #     'error': self._manager.get_dict(),
+        # }
+        handle['status'] = _STS_CREATING
         with self._jobslock:
             if self._prccount >= self._maxconn:
                 self._log.warning("Лимит процессов исчерпан")
@@ -127,7 +137,7 @@ class DBPollBase(object):
 
     def connect(self, timeout=None):
         """
-        Get connection to DBPoll as object DBProxyBase
+        Get connection to DBPool as object DBProxyBase
         :param timeout: in seconds, None equals nowait
         :return: DBProxyBase
         """
@@ -172,5 +182,58 @@ class DBPollBase(object):
             handle[_HNDL_WORKER].terminate()
             del handle[_HNDL_WORKER]
             handle[_HNDL_STATUS] = _STS_STOPPED
-        self._freelist.close()
         self._manager.shutdown()
+
+
+class MPManager(object):
+    def __init__(self):
+        self._manager_ = multiprocessing.Manager()
+
+    @staticmethod
+    def get_lock():
+        return multiprocessing.Lock()
+
+    def get_queue(self):
+        return self._manager_.Queue()
+
+    def get_event(self):
+        return self._manager_.Event()
+
+    def get_dict(self):
+        return self._manager_.dict()
+
+    def shutdown(self):
+        self._manager_.shutdown()
+
+
+class MTManager(object):
+
+    @staticmethod
+    def get_lock():
+        return threading.Lock()
+
+    @staticmethod
+    def get_queue():
+        return Queue.Queue()
+
+    @staticmethod
+    def get_event():
+        return threading.Event()
+
+    @staticmethod
+    def get_dict():
+        return {}
+
+    @staticmethod
+    def shutdown():
+        pass
+
+
+class DBPoolMP(DBPoolBase):
+    def __init__(self, dbconn, cls_proxy, cls_worker, minconn=None, maxconn=None):
+        super(DBPoolMP, self).__init__(dbconn, MPManager, cls_proxy, cls_worker, minconn, maxconn)
+
+
+class DBPoolMT(DBPoolBase):
+    def __init__(self, dbconn, cls_proxy, cls_worker, minconn=None, maxconn=None):
+        super(DBPoolMT, self).__init__(dbconn, MTManager, cls_proxy, cls_worker, minconn, maxconn)

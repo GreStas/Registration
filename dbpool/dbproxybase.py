@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 #
-#   Package : mpdbpoll.dbproxybase
+#   Package : dbpool.dbproxybase
 #   File : dbproxybase.py
 #
 
-from .common import *
+from common import *
+
 
 class DBProxyBase(object):
     def __init__(self, p_name, p_lock, p_input, p_output, p_client_evt, p_server_evt, p_error):
