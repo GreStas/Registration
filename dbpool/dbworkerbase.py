@@ -198,7 +198,8 @@ class DBWorkerBase(object):
 
 
 class DBWorkerMP(DBWorkerBase, multiprocessing.Process):
-    pass
+    def shutdown(self, immediate=False):
+        super(DBWorkerMP, self).shutdown(immediate)
 
 
 class DBWorkerMT(DBWorkerBase, threading.Thread):

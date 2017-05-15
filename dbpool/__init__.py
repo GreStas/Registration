@@ -179,7 +179,6 @@ class DBPoolBase(object):
             self.disconnect(handle[_HNDL_PROXY])
             del handle[_HNDL_PROXY]
             handle[_HNDL_WORKER].shutdown(immediate)
-            handle[_HNDL_WORKER].terminate()
             del handle[_HNDL_WORKER]
             handle[_HNDL_STATUS] = _STS_STOPPED
         self._manager.shutdown()

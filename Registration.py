@@ -105,7 +105,7 @@ class RegWorker(object):
         return hashlib.md5(stri).hexdigest()
 
     def close_dbpool(self):
-        self._dbpool.close()
+        self._dbpool.shutdown()
 
     def sendmail(self, request_id, logname, alias, authcode):
         """ int SendMail(request_id, logname, alias, authcode)

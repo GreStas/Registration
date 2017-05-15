@@ -3,6 +3,7 @@
 
 #import sys
 # from time import sleep
+import threading
 import SocketServer
 # Import my modules
 from config import Config
@@ -91,11 +92,24 @@ class RegHandler(SocketServer.StreamRequestHandler):
 
 class RegServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
+    daemon_threads = True
     # request_queue_size = 5
 
-
-_log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
 srvr = RegServer((srvrhost, srvrport), RegHandler)
-srvr.serve_forever()
-# sleep(1)
-_log.info("Socket server finished.")
+
+# def dedicate_srvr():
+if __name__ == '__main__':
+    _log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
+    srvr.serve_forever()
+    # sleep(1)
+    _log.info("Socket server finished.")
+
+
+# if __name__ == '__main__':
+    # t = threading.Thread(target=dedicate_srvr, name='RegServer')
+    # t.daemon = False
+    # t.start()
+    # raw_input("Press Enter to finish:")
+    # srvr.shutdown()
+    # raw_input("Press Enter to close dbpool:")
+    # regworker.close_dbpool()
