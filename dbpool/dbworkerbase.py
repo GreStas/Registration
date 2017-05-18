@@ -4,6 +4,7 @@
 #   File : dbworkerbase.py
 #
 
+import logging
 import threading
 import multiprocessing
 from common import *
@@ -42,9 +43,9 @@ class DBWorkerBase(object):
         :param p_error: Dictionary {errno, errspec, errmsg, remark} for describing error
         """
         super(DBWorkerBase, self).__init__()
-        self._log = set_logging("%s[%s][%s]" % (self.__class__.__name__, self.__hash__(), p_name))
+        self._log = logging.getLogger("%s[%s][%s]" % (self.__class__.__name__, self.__hash__(), p_name))
         if __debug__:
-            self._log.debug("DBWorkerBase(multiprocessing.Process).__init__ Started")
+            self._log.debug("DBWorkerBase.__init__ Started")
         self._dbconn, self._curr = self.connect(dbconn)
         # Internal variables to control of process
         self._name = p_name
@@ -113,7 +114,7 @@ class DBWorkerBase(object):
         :return: void
         """
         if __debug__:
-            self._log.debug("DBWorkerBase(multiprocessing.Process)._pass_control Started")
+            self._log.debug("DBWorkerBase._pass_control Started")
         # pause server side
         if self._server_evt.is_set():
             self._server_evt.clear()
@@ -137,6 +138,8 @@ class DBWorkerBase(object):
         return [(sql,)]
 
     def shutdown(self, immediate=False):
+        if __debug__:
+            self._log.debug("DBWorkerBase.shutdown Started")
         self._working = False
         if immediate:
             self._input.put((None, None))
@@ -144,7 +147,7 @@ class DBWorkerBase(object):
 
     def run(self):
         if __debug__:
-            self._log.debug("DBWorkerBase(multiprocessing.Process).run Started")
+            self._log.info("DBWorkerBase.run Started")
         while self._working:
             try:
                 self._server_evt.wait()   # Ждём новую команду от клиента
@@ -155,8 +158,12 @@ class DBWorkerBase(object):
                 try:
                     (cmnd, param) = self._input.get()   # Раз событие пришло, то в очереди что-то должно заваляться
                     if (cmnd, param) == (None, None):
+                        if __debug__:
+                            self._log.debug("DBWorkerBase.run has got (None,None)")
                         break
-                    elif cmnd == CMND_COMMIT:
+                    if __debug__:
+                        self._log.info("DBWorkerBase.run has got ('%s', '%s')" % (cmnd, param))
+                    if cmnd == CMND_COMMIT:
                         self.commit()
                     elif cmnd == CMND_ROLLBACK:
                         self.rollback()
@@ -192,15 +199,24 @@ class DBWorkerBase(object):
                     self._working = False
                     continue
                 finally:
+                    if __debug__:
+                        self._log.info("DBWorkerBase.run excepted finally")
                     self._pass_control()
         # финализация, если вышли из цикла не нормальным способом (continue или break)
+        if __debug__:
+            self._log.info("DBWorkerBase.run Finished and passed control")
         self._pass_control()
 
 
 class DBWorkerMP(DBWorkerBase, multiprocessing.Process):
     def shutdown(self, immediate=False):
         super(DBWorkerMP, self).shutdown(immediate)
+        if __debug__:
+            self._log.debug("DBWorkerMP.shutdown Started")
 
 
 class DBWorkerMT(DBWorkerBase, threading.Thread):
-    pass
+    def shutdown(self, immediate=False):
+        super(DBWorkerMT, self).shutdown(immediate)
+        if __debug__:
+            self._log.debug("DBWorkerMT.shutdown Started")

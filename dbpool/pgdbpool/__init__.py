@@ -4,6 +4,7 @@
 #   File : __init__.py
 #
 
+import logging
 import threading
 import multiprocessing
 from dbpool import DBPoolBase, DBPoolMP, DBPoolMT, SQLexecError
@@ -34,6 +35,7 @@ class PGDBWorker(DBWorkerBase):
         super(PGDBWorker, self).__init__(
             dbconn, p_name, p_lock, p_input, p_output, p_client_evt, p_server_evt, p_error
         )
+        self._log = logging.getLogger("%s[%s]" % (self.__class__.__name__, self.__hash__()))
         if __debug__:
             self._log.debug('PGDBWorker(DBWorkerBase).__init__ Started')
         # Set user's role in DB

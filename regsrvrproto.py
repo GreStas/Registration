@@ -9,8 +9,8 @@ import appproto
 # под именем AppProto должен быть класс, реализующий обмен через сокет
 
 
-_log = logging.getLogger("RegSrvrProto")
-_log.info("Started")
+# _log = logging.getLogger("RegSrvrProto")
+# _log.info("Started")
 
 
 class Error(RuntimeError):
@@ -27,19 +27,20 @@ class RegServerProto(object):
                        MESG_SENDMAIL: self.sendmail,
                        MESG_GARBAGE: self.garbage,
                        MESG_GATHER: self.gather, }
+        self._log = logging.getLogger("%s[%s]" % (self.__class__.__name__, self.__hash__()))
         try:
             if not header:
                 raise Error("Header is empty")
             elif header['head'] != HEAD_CMND:
-                _log.error("'%s' is not a command" % header['head'])
+                self._log.error("'%s' is not a command" % header['head'])
                 raise Error("'%s' is not a command" % header['head'])
             elif header['mesg'] in switch_mesg:
                 switch_mesg[header['mesg']](header)
             else:
-                _log.error("Server's got Unknown command: %s" % header['mesg'])
+                self._log.error("Server's got Unknown command: %s" % header['mesg'])
                 self._proto.send_head(HEAD_ERRR, MESG_COMMON, "Unknown command: %s" % header['mesg'])
         except KeyError as e:
-            _log.error("Server's got Invalid header: %s" % e.message)
+            self._log.error("Server's got Invalid header: %s" % e.message)
             self._proto.send_head(HEAD_ERRR, MESG_COMMON, "Invalid header: %s" % e.message)
 
     def garbage(self, header):
@@ -90,15 +91,15 @@ class RegServerProto(object):
 
     def save_request(self, header):
         if __debug__:
-            _log.debug("Call _reg_worker('%s','%s')" % (header['data']['logname'], header['data']['alias']))
+            self._log.debug("Call _reg_worker('%s','%s')" % (header['data']['logname'], header['data']['alias']))
         result = self._reg_worker.save_request(
             logname=header['data']['logname'],
             alias=header['data']['alias'],
             passwd=header['data']['passwd'],
         )
         if __debug__:
-            _log.debug("_reg_worker('%s','%s') returned %s"
-                       % (header['data']['logname'], header['data']['alias'], str(result)))
+            self._log.debug("_reg_worker('%s','%s') returned %s"
+                            % (header['data']['logname'], header['data']['alias'], str(result)))
         if result > 0:
             self._proto.send_head(HEAD_ANSW, MESG_SAVEREQUEST, result)
         else:

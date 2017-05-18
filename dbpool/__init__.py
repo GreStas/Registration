@@ -4,12 +4,13 @@
 #   File : __init__.py
 #
 
+import logging
 import threading
 import multiprocessing
 import Queue
 from common import *
 
-_log = set_logging("dbpool")
+_log = logging.getLogger("dbpool")
 
 _HNDL_WORKER = 'worker'   # DBWorkerBase
 _HNDL_PROXY = 'proxy'     # DBProxyBase
@@ -42,8 +43,9 @@ class DBPoolBase(object):
         :param minconn: min connections
         :param maxconn: max connections
         """
-        self._log = set_logging("%s[%s]" % (self.__class__.__name__, self.__hash__()))
+        self._log = logging.getLogger("%s[%s]" % (self.__class__.__name__, self.__hash__()))
         if __debug__:
+            # print "%s[%s] Started" % (self.__class__.__name__, self.__hash__())
             self._log.debug('Started')
         self._dbconn = dbconn
         self._manager = cls_manager()

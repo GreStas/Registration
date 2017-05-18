@@ -5,13 +5,6 @@
 #
 
 
-import logging
-
-
-def set_logging(template):
-    return logging.getLogger(template)
-
-
 class Error(Exception):
     def __init__(self, errno, errspec, errmsg, remark=None):
         self.errno = errno
