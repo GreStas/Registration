@@ -4,12 +4,13 @@
 #   File : __init__.py
 #
 
+import logging
 import threading
 import multiprocessing
 import Queue
 from common import *
 
-_log = set_logging("dbpool")
+_log = logging.getLogger("dbpool")
 
 _HNDL_WORKER = 'worker'   # DBWorkerBase
 _HNDL_PROXY = 'proxy'     # DBProxyBase
@@ -42,14 +43,15 @@ class DBPoolBase(object):
         :param minconn: min connections
         :param maxconn: max connections
         """
-        self._log = set_logging("%s[%s]" % (self.__class__.__name__, self.__hash__()))
+        self._log = logging.getLogger("%s[%s]" % (self.__class__.__name__, self.__hash__()))
         if __debug__:
+            # print "%s[%s] Started" % (self.__class__.__name__, self.__hash__())
             self._log.debug('Started')
         self._dbconn = dbconn
         self._manager = cls_manager()
         self._proxy = cls_proxy
         self._worker = cls_worker
-        self._freelist = Queue.Queue()
+        self._freelist = self._manager.get_queue()
         self._jobslock = self._manager.get_lock()  # jobslock  для целостности _conns и _prccount
         self._handles = []    # состоит из словарей с объектами для связки между Proxy и Worker
         self._prccount = 0  # практически всегда это номер следующего создаваемого процесса, len(_cons)

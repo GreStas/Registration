@@ -4,6 +4,7 @@
 #   File : dbproxybase.py
 #
 
+import logging
 from common import *
 
 
@@ -19,7 +20,7 @@ class DBProxyBase(object):
         :param p_server_evt: Event for Server process
         :param p_error: Dictionary {errno, errspec, errmsg, remark} for describing error
         """
-        self._log = set_logging("DBProxyBase[%s][%s]" % (self.__hash__(), p_name))
+        self._log = logging.getLogger("DBProxyBase[%s][%s]" % (self.__hash__(), p_name))
         # Internal variables to control of process
         self._name = p_name
         self._lock = p_lock

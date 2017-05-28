@@ -89,10 +89,15 @@ class RegHandler(SocketServer.StreamRequestHandler):
         except RuntimeError as e:
             _log.error("Runtime Error: '%s'" % e.message)
 
+if pooltype == 'mt':
+    SockSrvrClass = SocketServer.ThreadingTCPServer
+elif pooltype == 'mp':
+    SockSrvrClass = SocketServer.ForkingTCPServer
 
-class RegServer(SocketServer.ThreadingTCPServer):
+
+class RegServer(SockSrvrClass):
     allow_reuse_address = True
-    daemon_threads = True
+    # daemon_threads = True
     # request_queue_size = 5
 
 srvr = RegServer((srvrhost, srvrport), RegHandler)

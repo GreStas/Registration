@@ -18,33 +18,14 @@ import logging
 from dbpool.pgdbpool import PGDBPoolMP, PGDBPoolMT, SQLexecError
 from dbpool import DataError, Error
 
-_log = logging.getLogger("Registration")
-_log.debug("Started")
+# _log = logging.getLogger("Registration")
+# _log.debug("Started")
 
 timestamp = datetime.datetime
 
 
-def getRegWorker(dbconn, minconn=None, maxconn=None, pooltype='mt'):
-    """ Создаёт экземпляр класса RegWorker
-    :param dbconn:
-    :param minconn:
-    :param maxconn:
-    :param pooltype: 'mt' - MultiThreading |'mp' - Multi-Processing
-    :return: RegWorker()
-    """
-    if __debug__:
-        _log.debug("getRegWorker %d %d %s" % (minconn, maxconn, pooltype))
-    if pooltype == 'mt':
-        dbpool = PGDBPoolMT(dbconn, minconn, maxconn)
-    elif pooltype == 'mp':
-        dbpool = PGDBPoolMP(dbconn, minconn, maxconn)
-    else:
-        dbpool = None
-    return RegWorker(dbpool)
-
-
 class RegWorker(object):
-    """ class RegWorker(p_dbpool, p_log=_Null)
+    """ class RegWorker(p_dbpool)
         класс-контейнер методов-микросервисов
         - SaveRequest
         - SendMail
@@ -79,24 +60,22 @@ class RegWorker(object):
 
     def __init__(self, p_dbpool):
         self._dbpool = p_dbpool
-        self._log = logging.getLogger("RegWorker[%s]" % (self.__hash__()))
+        self._log = logging.getLogger("%s[%s]" % (self.__class__.__name__, self.__hash__()))
         if __debug__:
             self._log.debug("Started")
 
-    @staticmethod
-    def get_errmsg(err_mnemo):
+    def get_errmsg(self, err_mnemo):
         """ ErrMsg(errcode): str
         по мненонике возвращает текст ошибки"""
         if __debug__:
-            _log.debug("ErrMsg(%s)" % err_mnemo)
+            self._log.debug("ErrMsg(%s)" % err_mnemo)
         return RegWorker.ErrMsgs[RegWorker.ErrCodes[err_mnemo]]
 
-    @staticmethod
-    def get_errno(err_mnemo):
+    def get_errno(self, err_mnemo):
         """ ErrCode(errcode): int
         по мнемонике возвращает код ошибки"""
         if __debug__:
-            _log.debug("ErrCode(%s)" % err_mnemo)
+            self._log.debug("ErrCode(%s)" % err_mnemo)
         return RegWorker.ErrCodes[err_mnemo]
 
     @staticmethod
@@ -121,7 +100,7 @@ class RegWorker(object):
             if __debug__:
                 self._log.debug("errRegStatusToProgress: eSQLexec(%s) for '%s'" % (str(e)), stri)
             self._dbpool.disconnect(dbconn)
-            return RegWorker.get_errno("errRegStatusToProgress")
+            return self.get_errno("errRegStatusToProgress")
         # Сюда добавить реальный код отправки запроса авторизации по почте
         # authURI = web_domain + registration_path + "?a=" + authcode
         # try:
@@ -170,7 +149,7 @@ class RegWorker(object):
                 if __debug__:
                     self._log.debug("Has got rows %s" % str(rows))
                 if len(rows) == 0:
-                    request_id = RegWorker.get_errno("errNoDataFound")
+                    request_id = self.get_errno("errNoDataFound")
                     if __debug__:
                         self._log.debug("errNoDataFound")
                     raise DataError(
@@ -182,7 +161,7 @@ class RegWorker(object):
                 elif rows[0] > 0:
                     if __debug__:
                         self._log.debug("errDupLognameReg")
-                    request_id = RegWorker.get_errno("errDupLognameReg")
+                    request_id = self.get_errno("errDupLognameReg")
                     if __debug__:
                         self._log.debug("errDupLognameReg,%d" % request_id)
                     raise DataError(
@@ -199,7 +178,7 @@ class RegWorker(object):
                     self._log.debug("Run '%s'" % stri)
                 rows = dbconn.fetchone()
                 if len(rows) == 0:
-                    request_id = RegWorker.get_errno("errNoDataFound")
+                    request_id = self.get_errno("errNoDataFound")
                     if __debug__:
                         self._log.debug("errNoDataFound")
                     raise DataError(
@@ -209,7 +188,7 @@ class RegWorker(object):
                         remark="RegWorker.SaveRequest found %d rows in users for %s" % (rows[0], logname)
                     )
                 elif rows[0] > 0:
-                    request_id = RegWorker.get_errno("errDupLognameUsr")
+                    request_id = self.get_errno("errDupLognameUsr")
                     if __debug__:
                         self._log.debug("errDupLognameUsr")
                     raise DataError(
@@ -219,7 +198,7 @@ class RegWorker(object):
                         remark="RegWorker.SaveRequest found dupplicate logname in users"
                     )
             except SQLexecError:
-                request_id = RegWorker.get_errno("errSQL")
+                request_id = self.get_errno("errSQL")
                 if __debug__:
                     self._log.debug("errSQL")
                 raise
@@ -252,12 +231,12 @@ class RegWorker(object):
                 # if __debug__:
                 #     self._log.debug("After commit dbconn.error is {%s}" % str(dbconn.error))
             except UnicodeEncodeError:
-                request_id = RegWorker.get_errno("errUnicode")
+                request_id = self.get_errno("errUnicode")
                 if __debug__:
                     self._log.debug("errUnicode")
                 raise
             except SQLexecError:
-                request_id = RegWorker.get_errno("errInsRegistrations")
+                request_id = self.get_errno("errInsRegistrations")
                 if __debug__:
                     self._log.debug("errInsRegistrations")
                 raise
@@ -314,9 +293,9 @@ class RegWorker(object):
             except SQLexecError as e:
                 self._log.error("errRegStatusToRejected: %s" % str(e))
                 self._dbpool.disconnect(dbconn)
-                return RegWorker.get_errno("errRegStatusToRejected")
+                return self.get_errno("errRegStatusToRejected")
             self._dbpool.disconnect(dbconn)
-            return RegWorker.get_errno("errRejected")
+            return self.get_errno("errRejected")
 
         # Помечаем обработанную строку в журнале регистраций
         try:
@@ -330,12 +309,12 @@ class RegWorker(object):
                 self._log.debug("Registering of authcode=%s is success." % authcode)
             dbconn.commit()
             self._dbpool.disconnect(dbconn)
-            return RegWorker.get_errno("errNone")
+            return self.get_errno("errNone")
         except SQLexecError as e:
             self._log.error("errRegStatusToRegistered: %s" % str(e))
             dbconn.rollback()
         self._dbpool.disconnect(dbconn)
-        return RegWorker.get_errno("errRegStatusToRegistered")
+        return self.get_errno("errRegStatusToRegistered")
 
     def garbage(self, timealive):
         """ Garbage(timealive, interval): void
@@ -357,12 +336,12 @@ class RegWorker(object):
         except SQLexecError as e:
             self._log.error("eSQLexec %s" % str(e))
             self._dbpool.disconnect(dbconn)
-            return RegWorker.get_errno("errSQL")
+            return self.get_errno("errSQL")
         else:
             self._dbpool.disconnect(dbconn)
         if __debug__:
             self._log.debug("Finished")
-        return RegWorker.get_errno("errNone")
+        return self.get_errno("errNone")
 
     def gather(self, fields, limit=1):
         """ Конструирует запрос к registrtions, выполняет и возвращает список кортежей
@@ -404,5 +383,25 @@ class RegWorker(object):
         finally:
             self._dbpool.disconnect(dbconn)
         if __debug__:
-            _log.debug("return %d" % len(rows))
+            self._log.debug("return %d" % len(rows))
         return rows
+
+
+def getRegWorker(dbconn, minconn=None, maxconn=None, pooltype='mt'):
+    """ Создаёт экземпляр класса RegWorker
+    :param dbconn:
+    :param minconn:
+    :param maxconn:
+    :param pooltype: 'mt' - MultiThreading |'mp' - Multi-Processing
+    :return: RegWorker()
+    """
+    _log = logging.getLogger("Registration")
+    if __debug__:
+        _log.debug("getRegWorker %d %d %s" % (minconn, maxconn, pooltype))
+    if pooltype == 'mt':
+        dbpool = PGDBPoolMT(dbconn, minconn, maxconn)
+    elif pooltype == 'mp':
+        dbpool = PGDBPoolMP(dbconn, minconn, maxconn)
+    else:
+        dbpool = None
+    return RegWorker(dbpool)
