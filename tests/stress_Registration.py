@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 #
 
-import threading
-import multiprocessing
-from time import sleep
 import datetime
+import logging
+import threading
+from time import sleep
+
 from faker import Factory
 from faker.config import AVAILABLE_LOCALES
-import logging
-from config import Config
-import Registration
-from dbpool.pgdbpool import PGDBPoolMP, PGDBPoolMT
 
+from config import Config
+from dbpool.pgdbpool import PGDBPoolMP, PGDBPoolMT
+import registration
 
 cfg = Config(
         [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.ini'}),
@@ -38,20 +38,21 @@ print "INI-file:", inifile
 if inifile is not None:
     cfg.load_conf(inifile)
 
-defconnection = {}
-defconnection["pg_hostname"]    = cfg.get('pghost', 'POSTGRESQL', default='localhost')
-defconnection["pg_database"]    = cfg.get('pgdb', 'POSTGRESQL')
-defconnection["pg_user"]        = cfg.get('pguser', 'POSTGRESQL')
-defconnection["pg_passwd"]      = cfg.get('pgpasswd', 'POSTGRESQL')
-defconnection["pg_role"]        = cfg.get('pgrole', 'POSTGRESQL')
-defconnection["pg_schema"]      = cfg.get('pgschema', 'POSTGRESQL')
-dbpoolmin   = int(cfg.get('dbpoolmin', 'SOCKSRVR', default='1'))
-dbpoolmax   = int(cfg.get('dbpoolmax', 'SOCKSRVR', default='16'))
-pooltype    = cfg.get('pooltype', section='SOCKSRVR', default='mt')
-loglevel    = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
-logfile     = cfg.get('logfile', section='DEBUG', default='logs/stress_threads.log')
-iterations  = int(cfg.get('iterations', default='1'))
-maxqueue    = int(cfg.get('maxqueue', default='100'))
+defconnection = {
+    "pg_hostname": cfg.get('pghost', 'POSTGRESQL', default='localhost'),
+    "pg_database": cfg.get('pgdb', 'POSTGRESQL'),
+    "pg_user": cfg.get('pguser', 'POSTGRESQL'),
+    "pg_passwd": cfg.get('pgpasswd', 'POSTGRESQL'),
+    "pg_role": cfg.get('pgrole', 'POSTGRESQL'),
+    "pg_schema": cfg.get('pgschema', 'POSTGRESQL'),
+}
+dbpoolmin = int(cfg.get('dbpoolmin', 'SOCKSRVR', default='1'))
+dbpoolmax = int(cfg.get('dbpoolmax', 'SOCKSRVR', default='16'))
+pooltype = cfg.get('pooltype', section='SOCKSRVR', default='mt')
+loglevel = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
+logfile = cfg.get('logfile', section='DEBUG', default='logs/stress_threads.log')
+iterations = int(cfg.get('iterations', default='1'))
+maxqueue = int(cfg.get('maxqueue', default='100'))
 del cfg
 
 if pooltype == 'mt':
@@ -78,7 +79,7 @@ _log = logging.getLogger("StressRegistration")
 _log.info("Started")
 
 
-class RegWorker(Registration.RegWorker):
+class RegWorker(registration.RegWorker):
     def get_authcode(self, request_id):
         data = self.gather(
             fields=[('authcode', None),
@@ -141,7 +142,7 @@ class StressMT(threading.Thread):
             )
             if __debug__:
                 _log.debug('(%d)Request_id=%d' % (self.ident, request_id))
-        except Registration.Error as e:
+        except registration.Error as e:
             _log.error("(%d)SaveRequest is unsuccessfull: %s" % (self.ident, e.message))
             StressMT.prc_dec()
             return
@@ -157,7 +158,7 @@ class StressMT(threading.Thread):
             client.approve(authcode)
             if __debug__:
                 _log.debug('(%d)Approve authcode(%d)=%s successfully' % (self.ident, request_id, authcode))
-        except Registration.Error as e:
+        except registration.Error as e:
             _log.error("(%d)RegApprove is unsuccessfull: %s" % (self.ident, e.message))
             StressMT.prc_dec()
             return

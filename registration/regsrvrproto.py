@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 
-import logging
 import json
-from regproto import *
+import logging
+
 import appproto
+from registration.regproto import *
+
+
 # под именем AppProto должен быть класс, реализующий обмен через сокет
 
 

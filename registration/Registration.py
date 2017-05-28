@@ -18,11 +18,6 @@ import logging
 from dbpool.pgdbpool import PGDBPoolMP, PGDBPoolMT, SQLexecError
 from dbpool import DataError, Error
 
-# _log = logging.getLogger("Registration")
-# _log.debug("Started")
-
-timestamp = datetime.datetime
-
 
 class RegWorker(object):
     """ class RegWorker(p_dbpool)
@@ -80,7 +75,7 @@ class RegWorker(object):
 
     @staticmethod
     def _request_hash(request_id, logname, alias, passwd):
-        stri = str(request_id) + ascii(logname) + ascii(alias) + passwd + str(timestamp.utcnow())
+        stri = str(request_id) + ascii(logname) + ascii(alias) + passwd + str(datetime.datetime.utcnow())
         return hashlib.md5(stri).hexdigest()
 
     def close_dbpool(self):

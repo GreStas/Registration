@@ -1,11 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from time import sleep
 import logging
-import SocketServer
+import multiprocessing
+import signal
 from config import Config
-from registration import getRegWorker
-from registration.regsrvrproto import RegServerProto, Error as RegProtoError
+
 
 cfg = Config(
         [(("", "--inifile"), {'action': 'store', 'type': 'string', 'dest': 'inifile', 'default': 'stresstest.ini'}),
@@ -40,7 +41,7 @@ defconnection = {
     "pg_schema": cfg.get('pgschema', 'POSTGRESQL'),
 }
 loglevel = cfg.get('loglevel', section='DEBUG', default='CRITICAL')
-logfile = cfg.get('logfile', section='DEBUG', default='logs/socksrvr.log')
+logfile = cfg.get('logfile', section='DEBUG', default='logs/stresser.log')
 srvrhost = cfg.get('srvrhost', 'SOCKSRVR', default='localhost')
 srvrport = int(cfg.get('srvrport', 'SOCKSRVR', default='9090'))
 dbpoolmin = int(cfg.get('dbpoolmin', 'SOCKSRVR', default='1'))
@@ -65,41 +66,55 @@ logging.basicConfig(
     format="%(asctime)s pid[%(process)d].%(name)s.%(funcName)s(%(lineno)d):%(levelname)s:%(message)s",
     level=logging_level.get(loglevel, logging.NOTSET)
 )
-_log = logging.getLogger("RegSockSrvr")
+_log = logging.getLogger("stresser")
 _log.info("Started")
 
-regworker = getRegWorker(defconnection, dbpoolmin, dbpoolmax, pooltype)
+def controller(name, ctrl_evt):
+    _log.info("Started #%s" % name)
+    while True:
+        _log.debug("Begin #%s iteration" % name)
+        sleep(10)
+        _log.debug("End #%s iteration" % name)
+        if not ctrl_evt.is_set():
+            break
+    _log.info("Finished #%s" % name)
 
 
-class Error(RuntimeError):
-    pass
+prc_count = multiprocessing.cpu_count()
+print "Create %d processes" % prc_count
+p_list = []
+for i in range(prc_count):
+    is_working = multiprocessing.Event()
+    is_working.clear()
+    prc = multiprocessing.Process(target=controller, args=(str(i), is_working,))
+    prc.daemon = True
+    p_list.append({
+        'is_working': is_working,
+        'prc': prc,
+    })
+    prc.start()
+
+def alrm_handler(signum, frame):
+    _log.info("SIGALRM")
+    for descriptor in p_list:
+        descriptor['is_working'].clear()
+
+def term_handler(signum, frame):
+    _log.info("SIGTERM")
+    for descriptor in p_list:
+        descriptor['prc'].terminate()
+
+signal.signal(signal.SIGALRM, alrm_handler)
+signal.signal(signal.SIGTERM, term_handler)
+
+print "Send is_working event"
+for descriptor in p_list:
+    descriptor['is_working'].set()
+    sleep(1)
 
 
-class RegHandler(SocketServer.StreamRequestHandler):
-    def handle(self):
-        try:
-            RegServerProto(regworker, self.request)
-        except RegProtoError as e:
-            _log.error("Registration error: '%s'" % e.message)
-        except RuntimeError as e:
-            _log.error("Runtime Error: '%s'" % e.message)
+print "Join all processes"
+for descriptor in p_list:
+    descriptor['prc'].join()
 
-if pooltype == 'mt':
-    SockSrvrClass = SocketServer.ThreadingTCPServer
-elif pooltype == 'mp':
-    SockSrvrClass = SocketServer.ForkingTCPServer
-
-
-class RegServer(SockSrvrClass):
-    allow_reuse_address = True
-    # daemon_threads = True
-    # request_queue_size = 5
-
-srvr = RegServer((srvrhost, srvrport), RegHandler)
-
-# def dedicate_srvr():
-if __name__ == '__main__':
-    _log.info("Socket server started in %s:%d" % (srvrhost, srvrport))
-    srvr.serve_forever()
-    # sleep(1)
-    _log.info("Socket server finished.")
+print "Finished."

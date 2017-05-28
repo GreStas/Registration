@@ -4,12 +4,14 @@
 
 # from random import randint
 # import sys
+import datetime
+import logging
 import threading
 from time import sleep
-import datetime
+
 from faker import Factory
 from faker.config import AVAILABLE_LOCALES
-import logging
+
 from config import Config
 
 cfg = Config(
@@ -57,7 +59,7 @@ _log = logging.getLogger("StressThreads")
 _log.info("Started")
 
 
-from regclntproto import RegClientProto, Error as RegProtoError
+from registration.regclntproto import RegClientProto, Error as RegProtoError
 
 
 class RegClient(RegClientProto):
