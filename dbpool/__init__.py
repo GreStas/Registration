@@ -51,7 +51,7 @@ class DBPoolBase(object):
         self._manager = cls_manager()
         self._proxy = cls_proxy
         self._worker = cls_worker
-        self._freelist = Queue.Queue()
+        self._freelist = self._manager.get_queue()
         self._jobslock = self._manager.get_lock()  # jobslock  для целостности _conns и _prccount
         self._handles = []    # состоит из словарей с объектами для связки между Proxy и Worker
         self._prccount = 0  # практически всегда это номер следующего создаваемого процесса, len(_cons)

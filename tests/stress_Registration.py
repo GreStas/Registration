@@ -3,6 +3,7 @@
 #
 
 import threading
+import multiprocessing
 from time import sleep
 import datetime
 from faker import Factory
@@ -102,20 +103,20 @@ class RegWorker(Registration.RegWorker):
         )
 
 
-class Stress(threading.Thread):
+class StressMT(threading.Thread):
 
     prc_counts = 0
     lock = threading.Lock()
 
     @staticmethod
     def prc_inc():
-        with Stress.lock:
-            Stress.prc_counts += 1
+        with StressMT.lock:
+            StressMT.prc_counts += 1
 
     @staticmethod
     def prc_dec():
-        with Stress.lock:
-            Stress.prc_counts -= 1
+        with StressMT.lock:
+            StressMT.prc_counts -= 1
 
     def __init__(self, fake):
         threading.Thread.__init__(self)
@@ -124,8 +125,8 @@ class Stress(threading.Thread):
 
     def run(self):
         if __debug__:
-            _log.debug("(%d)Started thread, counter=%d." % (self.ident, Stress.prc_counts))
-        Stress.prc_inc()
+            _log.debug("(%d)Started thread, counter=%d." % (self.ident, StressMT.prc_counts))
+        StressMT.prc_inc()
         client = RegWorker(dbpool)
         try:
             logname = self.fake.email()
@@ -142,7 +143,7 @@ class Stress(threading.Thread):
                 _log.debug('(%d)Request_id=%d' % (self.ident, request_id))
         except Registration.Error as e:
             _log.error("(%d)SaveRequest is unsuccessfull: %s" % (self.ident, e.message))
-            Stress.prc_dec()
+            StressMT.prc_dec()
             return
         try:
             authcode = client.get_authcode(request_id)
@@ -150,7 +151,7 @@ class Stress(threading.Thread):
                 _log.debug('(%d)Authcode(%d)=%s' % (self.ident, request_id, authcode))
         except RuntimeError as e:
             _log.error("(%d)GetAuthcode is unsuccessfull: %s" % (self.ident, e.message))
-            Stress.prc_dec()
+            StressMT.prc_dec()
             return
         try:
             client.approve(authcode)
@@ -158,12 +159,13 @@ class Stress(threading.Thread):
                 _log.debug('(%d)Approve authcode(%d)=%s successfully' % (self.ident, request_id, authcode))
         except Registration.Error as e:
             _log.error("(%d)RegApprove is unsuccessfull: %s" % (self.ident, e.message))
-            Stress.prc_dec()
+            StressMT.prc_dec()
             return
-        Stress.prc_dec()
+        StressMT.prc_dec()
         if __debug__:
-            _log.debug("(%d)Finished thread, counter=%d." % (self.ident, Stress.prc_counts))
+            _log.debug("(%d)Finished thread, counter=%d." % (self.ident, StressMT.prc_counts))
         return
+
 
 print "Started"
 print "Logfile:", logfile
@@ -175,13 +177,13 @@ prc_count = 0
 
 print "Main cicle started at ", datetime.datetime.now()
 for i in xrange(iterations):
-    if Stress.prc_counts >= maxqueue:
+    if StressMT.prc_counts >= maxqueue:
         sleep(1)
-    t = Stress(fakers[i % fakers_max])
+    t = StressMT(fakers[i % fakers_max])
     t.start()
 print "Main cicle finished at ", datetime.datetime.now()
-while Stress.prc_counts > 0:
-    print Stress.prc_counts
+while StressMT.prc_counts > 0:
+    print StressMT.prc_counts
     sleep(1)
 print "Waiting finished at ", datetime.datetime.now()
 
